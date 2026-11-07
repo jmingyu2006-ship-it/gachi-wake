@@ -318,6 +318,46 @@
     return { slots: slots, started: started, total: slots.length };
   }
 
+  // 방 멤버 한 명의 프로필 (서버 room_view의 멤버 항목 → 화면용)
+  var DOW_KO = ['일', '월', '화', '수', '목', '금', '토'];
+  function statusFor(min, target) {
+    if (!isInt(min)) return null;
+    if (!isInt(target)) return 'none';
+    var d = min - target;
+    return d <= HIT_TOL ? 'hit' : (d <= CLOSE_TOL ? 'close' : 'late');
+  }
+  function profileFromMember(m, todayKey) {
+    if (!m) return null;
+    var target = isInt(m.target_min) ? m.target_min : null;
+    var raw = Array.isArray(m.week) ? m.week.slice(-7) : [];
+    while (raw.length < 7) raw.unshift(null);
+    var week = raw.map(function (v, i) {
+      var key = addDays(todayKey, i - 6), min = isInt(v) ? v : null;
+      return { key: key, label: DOW_KO[dayOfWeek(key)], isToday: i === 6, time: min === null ? null : formatMinute(min), status: statusFor(min, target) };
+    });
+    var mins = raw.filter(isInt);
+    var joined = typeof m.joined === 'string' && DATE_RE.test(m.joined) ? m.joined : null;
+    return {
+      name: sanitizeName(String(m.nickname || ''), 10) || '?',
+      me: !!m.me,
+      today: isInt(m.start_min) ? formatMinute(m.start_min) : null,
+      target: target === null ? null : formatMinute(target),
+      streak: isInt(m.streak) && m.streak >= 0 ? m.streak : 0,
+      days30: isInt(m.days30) && m.days30 >= 0 ? Math.min(30, m.days30) : 0,
+      week: week,
+      weekCount: mins.length,
+      hits: week.filter(function (d) { return d.status === 'hit'; }).length,
+      avg7: mins.length ? formatMinute(Math.round(mins.reduce(function (a, b) { return a + b; }, 0) / mins.length)) : null,
+      joined: joined,
+      joinedDays: joined ? Math.max(0, daysBetween(joined, todayKey)) + 1 : null
+    };
+  }
+  // 방에 올릴 내 최근 기록 (최근 66일, 서버 규칙과 같은 범위)
+  function recentStarts(records, todayKey) {
+    return records.filter(function (r) { var d = daysBetween(r.date, todayKey); return d >= 0 && d <= 66; })
+      .slice(-70).map(function (r) { return { d: r.date, m: r.minuteOfDay }; });
+  }
+
   // ---------- 공유 서버(선택) ----------
   function serverPayload(rec, anonId) {
     return { anon_id: anonId, day: rec.date, bucket: Math.floor(rec.minuteOfDay / BUCKET) };
@@ -350,6 +390,7 @@
     crowdForDay: crowdForDay, awakeUntil: awakeUntil, recentCount: recentCount,
     windowOrder: windowOrder, myWindow: myWindow, litWindows: litWindows,
     sanitizeName: sanitizeName, parseRoomCode: parseRoomCode, inviteUrl: inviteUrl, roomSlots: roomSlots,
+    profileFromMember: profileFromMember, recentStarts: recentStarts,
     serverPayload: serverPayload, parseServerCounts: parseServerCounts, hashString: hashString
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

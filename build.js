@@ -43,7 +43,7 @@ function out(rel, content) { fs.mkdirSync(path.dirname(R('dist', rel)), { recurs
 
 out('artifact/index.html', withLogic.replace('<!--__WEB_HEAD__-->', () => SITE_URL ? `<script>window.GACHI_SITE_URL = ${JSON.stringify(SITE_URL)};</script>` : '').replace('/*__WEB_INIT__*/', ''));
 out('web/index.html', withLogic.replace('<!--__WEB_HEAD__-->', () => WEB_HEAD).replace('/*__WEB_INIT__*/', () => WEB_INIT));
-for (const f of ['sw.js', 'manifest.webmanifest', 'config.js', 'supabase.sql', 'supabase-rooms.sql', 'DEPLOY.md']) {
+for (const f of ['sw.js', 'manifest.webmanifest', 'config.js', 'supabase.sql', 'supabase-rooms.sql', 'supabase-profiles.sql', 'DEPLOY.md']) {
   if (fs.existsSync(R('web', f))) out('web/' + f, fs.readFileSync(R('web', f)));
 }
 out('web/.nojekyll', '');

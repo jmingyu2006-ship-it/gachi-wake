@@ -188,6 +188,48 @@ test('우리 방: 서버 결과를 창문 칸으로, 내 기록은 서버에 아
   assert.equal(L.roomSlots(null).total, 0);
 });
 
+test('방 프로필: 서버 값 → 연속 일수·목표·최근 7일(요일·달성 색)·평균·함께한 날', () => {
+  const m = { nickname: '민수', me: false, start_min: 405, target_min: 420, joined: '2026-11-02', streak: 6, days30: 7,
+    week: [null, 430, 420, 395, 410, 500, 405] };
+  const p = L.profileFromMember(m, '2026-11-08'); // 일요일
+  assert.equal(p.name, '민수');
+  assert.equal(p.streak, 6);
+  assert.equal(p.target, '07:00');
+  assert.equal(p.today, '06:45');
+  assert.deepEqual(p.week.map(d => d.label), ['월', '화', '수', '목', '금', '토', '일']);
+  assert.equal(p.week[0].key, '2026-11-02');
+  assert.equal(p.week[6].isToday, true);
+  assert.deepEqual(p.week.map(d => d.status), [null, 'hit', 'hit', 'hit', 'hit', 'late', 'hit']);
+  assert.equal(p.hits, 5);
+  assert.equal(p.weekCount, 6);
+  assert.equal(p.avg7, '07:07');
+  assert.equal(p.days30, 7);
+  assert.equal(p.joinedDays, 7);
+  // 목표가 없거나 이상한 값이면 안전하게
+  const q = L.profileFromMember({ nickname: '<b>지원', streak: -3, days30: 'x', week: 'oops', joined: 'bad', target_min: null }, '2026-11-08');
+  assert.equal(q.name, 'b지원');
+  assert.equal(q.streak, 0);
+  assert.equal(q.days30, 0);
+  assert.equal(q.week.length, 7);
+  assert.equal(q.target, null);
+  assert.equal(q.avg7, null);
+  assert.equal(q.joinedDays, null);
+});
+
+test('방에 올릴 기록: 최근 66일만, 날짜·분만', () => {
+  const s = L.makeSettings({ baselineMin: 420, targetMin: 420, sleepNeedH: 8, firstAction: '물' }, '2026-08-01').settings;
+  let recs = [];
+  for (let i = 0; i < 100; i++) {
+    const d = new Date(2026, 7, 1 + i, 7, 0);
+    recs = L.createStartRecord(recs, d, s).records;
+  }
+  const out = L.recentStarts(recs, '2026-11-08');
+  assert.equal(out.length, 67);
+  assert.deepEqual(Object.keys(out[0]).sort(), ['d', 'm']);
+  assert.equal(out.at(-1).d, '2026-11-08');
+  assert.equal(out[0].d, '2026-09-03');
+});
+
 test('서버 전송: 익명 id·날짜·30분 구간만 보낸다 (정확한 분·첫 행동은 안 보냄)', () => {
   const rec = L.createStartRecord([], at(2026, 11, 9, 7, 40), S().settings).record;
   const p = L.serverPayload(rec, 'anon-1');

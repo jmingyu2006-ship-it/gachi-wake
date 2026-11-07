@@ -90,7 +90,12 @@
   /* 방 건물: 창문마다 이름과 시각 */
   .building.room { width: auto; padding: 16px 14px 14px; }
   .room-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px 10px; }
-  .unit { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+  .unit { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; background: none; border: none; padding: 4px 0; margin: 0; color: inherit; font: inherit; border-radius: 10px; cursor: pointer; }
+  .unit:focus-visible { outline: 3px solid var(--lit); outline-offset: 2px; }
+  .unit:active .w { transform: scale(0.96); }
+  .pstats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .pstats .card { padding: 12px 10px; border-radius: 16px; background: var(--surface2); }
+  .pstats .stat-num { font-size: 22px; }
   .unit .w { width: 100%; height: 42px; border-radius: 6px; background: var(--win); transition: background .4s, box-shadow .4s; }
   .unit.on .w { background: var(--lit); box-shadow: 0 0 12px rgba(255,199,90,.5); }
   .unit.pop .w { animation: flick .9s ease-out both; }
@@ -561,6 +566,46 @@
     return { slots: slots, started: started, total: slots.length };
   }
 
+  // 방 멤버 한 명의 프로필 (서버 room_view의 멤버 항목 → 화면용)
+  var DOW_KO = ['일', '월', '화', '수', '목', '금', '토'];
+  function statusFor(min, target) {
+    if (!isInt(min)) return null;
+    if (!isInt(target)) return 'none';
+    var d = min - target;
+    return d <= HIT_TOL ? 'hit' : (d <= CLOSE_TOL ? 'close' : 'late');
+  }
+  function profileFromMember(m, todayKey) {
+    if (!m) return null;
+    var target = isInt(m.target_min) ? m.target_min : null;
+    var raw = Array.isArray(m.week) ? m.week.slice(-7) : [];
+    while (raw.length < 7) raw.unshift(null);
+    var week = raw.map(function (v, i) {
+      var key = addDays(todayKey, i - 6), min = isInt(v) ? v : null;
+      return { key: key, label: DOW_KO[dayOfWeek(key)], isToday: i === 6, time: min === null ? null : formatMinute(min), status: statusFor(min, target) };
+    });
+    var mins = raw.filter(isInt);
+    var joined = typeof m.joined === 'string' && DATE_RE.test(m.joined) ? m.joined : null;
+    return {
+      name: sanitizeName(String(m.nickname || ''), 10) || '?',
+      me: !!m.me,
+      today: isInt(m.start_min) ? formatMinute(m.start_min) : null,
+      target: target === null ? null : formatMinute(target),
+      streak: isInt(m.streak) && m.streak >= 0 ? m.streak : 0,
+      days30: isInt(m.days30) && m.days30 >= 0 ? Math.min(30, m.days30) : 0,
+      week: week,
+      weekCount: mins.length,
+      hits: week.filter(function (d) { return d.status === 'hit'; }).length,
+      avg7: mins.length ? formatMinute(Math.round(mins.reduce(function (a, b) { return a + b; }, 0) / mins.length)) : null,
+      joined: joined,
+      joinedDays: joined ? Math.max(0, daysBetween(joined, todayKey)) + 1 : null
+    };
+  }
+  // 방에 올릴 내 최근 기록 (최근 66일, 서버 규칙과 같은 범위)
+  function recentStarts(records, todayKey) {
+    return records.filter(function (r) { var d = daysBetween(r.date, todayKey); return d >= 0 && d <= 66; })
+      .slice(-70).map(function (r) { return { d: r.date, m: r.minuteOfDay }; });
+  }
+
   // ---------- 공유 서버(선택) ----------
   function serverPayload(rec, anonId) {
     return { anon_id: anonId, day: rec.date, bucket: Math.floor(rec.minuteOfDay / BUCKET) };
@@ -593,6 +638,7 @@
     crowdForDay: crowdForDay, awakeUntil: awakeUntil, recentCount: recentCount,
     windowOrder: windowOrder, myWindow: myWindow, litWindows: litWindows,
     sanitizeName: sanitizeName, parseRoomCode: parseRoomCode, inviteUrl: inviteUrl, roomSlots: roomSlots,
+    profileFromMember: profileFromMember, recentStarts: recentStarts,
     serverPayload: serverPayload, parseServerCounts: parseServerCounts, hashString: hashString
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
@@ -751,6 +797,7 @@
     state.settings = s;
     if (!Local.set(K.settings, s)) toast('설정을 저장하지 못했어요.');
     Cloud.save('settings', s);
+    syncProfile();
   }
 
   // ---------- 시간 ----------
@@ -1287,8 +1334,48 @@
   function addRoom(code, name) {
     state.rooms = state.rooms.filter(function (r) { return r.code !== code; }).concat([{ code: code, name: name }]);
     saveRooms(); setView(code);
-    var today = L.toDateKey(realNow());
-    if (L.findDay(state.records, today)) { queueRoomStart(today); syncRoomStarts(); }
+    syncProfile();
+  }
+  // 방에 들어가 있으면 목표 시각과 최근 66일 기록을 올려 둔다 (연속 일수 계산용)
+  function syncProfile() {
+    if (!Server.on || !state.rooms.length || !state.settings) return Promise.resolve();
+    return Server.rpc('sync_profile', { p_anon: anonId, p_target: state.settings.targetMin, p_starts: L.recentStarts(state.records, L.toDateKey(realNow())) })
+      .then(function () { return refreshRoom(); }).catch(function () {});
+  }
+  function profileStat(label, value, note) {
+    return '<div class="card stat"><div class="label">' + label + '</div><div class="stat-num num">' + value + '</div><div class="stat-note">' + note + '</div></div>';
+  }
+  function openProfile(i) {
+    var room = currentRoom(), d = room && state.roomData[room.code];
+    if (!d || !d.view || !d.view.members[i]) return;
+    var key = L.toDateKey(effectiveNow()), m = d.view.members[i];
+    var p = L.profileFromMember(m, key);
+    var local = p.me ? L.findDay(currentRecords(), key) : null;
+    if (local && !p.today) p.today = L.formatMinute(local.minuteOfDay);
+    // 오늘 눌렀는데 아직 서버에 안 올라갔으면 서버 값(어제까지)에 오늘 하루를 더한다
+    var streak = p.streak + (p.me && local && !Number.isInteger(m.start_min) ? 1 : 0);
+    var streakNote = p.today ? '오늘까지' : (streak ? '어제까지 · 오늘 하면 ' + (streak + 1) + '일' : '오늘 시작하면 1일');
+    var cells = p.week.map(function (w) {
+      var cls = w.time ? (w.status || 'none') : (w.isToday ? 'todo' : '');
+      var nm = { hit: '목표 달성', close: '조금 늦음', late: '늦음', none: '기록' }[w.status] || '';
+      return '<div class="day"><div class="day-label' + (w.isToday ? ' today' : '') + '">' + (w.isToday ? '오늘' : w.label) + '</div>' +
+        '<div class="cell ' + cls + ' num" aria-label="' + w.label + '요일 ' + (w.time ? w.time + ' ' + nm : '기록 없음') + '">' + (w.time || '') + '</div></div>';
+    }).join('');
+    var el = document.getElementById('sheetBody');
+    el.innerHTML = '<h2 id="sheetTitle">' + esc(p.name) + (p.me ? ' <span class="label">(나)</span>' : '') + '</h2>' +
+      '<p class="lead">' + (p.joinedDays ? '\'' + esc(room.name) + '\' 방에서 ' + p.joinedDays + '일째 · ' : '') + (p.today ? '오늘 ' + p.today + '에 시작했어요' : '오늘은 아직이에요') + '</p>' +
+      '<div class="pstats">' +
+        profileStat('연속 기상', streak + '일', streakNote) +
+        profileStat('목표', p.target || '—', p.target ? '매일 이 시각' : '아직 안 정했어요') +
+        profileStat('최근 30일', p.days30 + '일', '하루를 시작한 날') +
+      '</div>' +
+      '<div class="card" style="margin-top:12px"><div class="row-between"><div class="label">최근 7일</div><div class="label">' +
+        (p.target ? '목표 달성 ' + p.hits + '일' : p.weekCount + '일 기록') + '</div></div><div class="week">' + cells + '</div>' +
+        (p.avg7 ? '<p class="status-sub">최근 7일 평균 ' + p.avg7 + '에 시작' + (p.target ? ' · 목표 ' + p.target : '') + '</p>' : '') + '</div>' +
+      '<button type="button" class="close-btn" id="closeSheet">닫기</button>';
+    document.getElementById('sheet').hidden = false;
+    el.querySelector('#closeSheet').addEventListener('click', closeSheet);
+    el.querySelector('h2').setAttribute('tabindex', '-1'); el.querySelector('h2').focus();
   }
   function switchHtml() {
     return '<div class="switch" role="group" aria-label="볼 건물 고르기">' +
@@ -1298,7 +1385,7 @@
   }
   function roomSceneHtml(room) {
     return '<div class="scene" id="roomScene">' + scene.querySelector('.sky').outerHTML +
-      '<div class="building room" role="img" id="roomImg" aria-label="' + esc(room.name) + ' 건물"><div class="room-grid" id="roomGrid"></div></div><div class="ground"></div>' +
+      '<div class="building room" role="group" id="roomImg" aria-label="' + esc(room.name) + ' 건물"><div class="room-grid" id="roomGrid"></div></div><div class="ground"></div>' +
       '<div class="scene-meta"><span class="dot" id="roomDot"></span><span id="roomLine">불러오는 중</span></div><div class="scene-sub" id="roomSub"></div></div>';
   }
   function updateRoomScene() {
@@ -1317,12 +1404,13 @@
     grid.innerHTML = rs.slots.map(function (s, i) {
       var id = i + ':' + s.name, on = s.min !== null, pop = on && !seen[id] && !reduced;
       if (on) seen[id] = true;
-      return '<div class="unit' + (on ? ' on' : '') + (s.me ? ' me' : '') + (pop ? ' pop' : '') + '"><span class="w"></span>' +
-        '<span class="nm">' + esc(s.name) + (s.me ? ' (나)' : '') + '</span><span class="tm">' + (s.time || '아직') + '</span></div>';
+      return '<button type="button" class="unit' + (on ? ' on' : '') + (s.me ? ' me' : '') + (pop ? ' pop' : '') + '" data-member="' + i + '" aria-label="' +
+        esc(s.name) + (s.me ? ' (나)' : '') + ', ' + (s.time ? s.time + ' 시작' : '아직') + ', 프로필 보기"><span class="w"></span>' +
+        '<span class="nm">' + esc(s.name) + (s.me ? ' (나)' : '') + '</span><span class="tm">' + (s.time || '아직') + '</span></button>';
     }).join('');
-    document.getElementById('roomImg').setAttribute('aria-label', room.name + ' 건물: ' + rs.slots.map(function (s) { return s.name + (s.time ? ' ' + s.time + ' 시작' : ' 아직'); }).join(', '));
+    document.getElementById('roomImg').setAttribute('aria-label', room.name + ' 건물, 창문을 누르면 프로필이 열려요');
     line.innerHTML = '<b class="num">' + rs.started + '명</b> / ' + rs.total + '명이 하루를 시작했어요';
-    sub.textContent = d.error ? '연결이 불안정해요 · 마지막으로 받은 내용이에요' : (rs.total < 2 ? '아직 혼자예요. 아래에서 친구를 초대해 보세요' : '20초마다 새로 고침');
+    sub.textContent = d.error ? '연결이 불안정해요 · 마지막으로 받은 내용이에요' : (rs.total < 2 ? '아직 혼자예요. 아래에서 친구를 초대해 보세요' : '창문을 누르면 프로필 · 20초마다 새로 고침');
     document.getElementById('roomDot').className = d.error ? 'dot demo' : 'dot';
   }
   function refreshRoom() {
@@ -1346,7 +1434,7 @@
   }
   function openCreateRoom() {
     var el = document.getElementById('sheetBody');
-    el.innerHTML = '<h2 id="sheetTitle">우리 방 만들기</h2><p class="lead">초대 링크를 받은 친구만 들어올 수 있어요. 방 안에서는 서로의 이름과 하루 시작 시각이 보여요.</p>' +
+    el.innerHTML = '<h2 id="sheetTitle">우리 방 만들기</h2><p class="lead">초대 링크를 받은 친구만 들어올 수 있어요. 방 안에서는 서로의 이름, 목표 시각, 최근 66일의 하루 시작 기록(연속 일수 등)이 보여요.</p>' +
       '<div class="field"><label for="roomName">방 이름 (20자까지)</label><input id="roomName" maxlength="20" value="우리 방"></div>' + nickField('nick') +
       '<div class="err" id="roomErr" role="alert"></div><button type="button" class="primary" id="doCreate" style="width:100%;margin-top:6px">방 만들기</button>' +
       '<button type="button" class="close-btn" id="closeSheet">닫기</button>';
@@ -1377,7 +1465,7 @@
       if (!p || p.error) { toast(roomErr(p && p.error)); return; }
       var el = document.getElementById('sheetBody');
       el.innerHTML = '<h2 id="sheetTitle">\'' + esc(L.sanitizeName(String(p.name || ''), 20)) + '\' 방에 초대됐어요</h2>' +
-        '<p class="lead">지금 ' + Number(p.members || 0) + '명이 있어요. 들어가면 서로의 이름과 하루 시작 시각이 보여요. 전체 사용자 건물에는 지금처럼 이름 없이 보여요.</p>' +
+        '<p class="lead">지금 ' + Number(p.members || 0) + '명이 있어요. 들어가면 서로의 이름, 목표 시각, 최근 66일의 하루 시작 기록(연속 일수 등)이 이 방 사람들에게 보여요. 전체 사용자 건물에는 지금처럼 이름 없이 보여요.</p>' +
         nickField('joinNick') + '<div class="err" id="joinErr" role="alert"></div>' +
         '<button type="button" class="primary" id="doJoin" style="width:100%;margin-top:6px">들어가기</button><button type="button" class="close-btn" id="closeSheet">나중에</button>';
       document.getElementById('sheet').hidden = false;
@@ -1410,6 +1498,8 @@
     var v = e.target.closest('[data-view]');
     if (v) { setView(v.dataset.view); render(); return; }
     if (e.target.closest('[data-create-room]')) return openCreateRoom();
+    var mb = e.target.closest('[data-member]');
+    if (mb) return openProfile(+mb.dataset.member);
     if (e.target.closest('[data-invite]')) { var r = currentRoom(); if (r) shareInvite(r); return; }
     var lv = e.target.closest('[data-leave]');
     if (lv) {
@@ -1460,7 +1550,7 @@
     }
   }, 4000);
   if (Server.on) {
-    refreshCrowd(); syncPending(); syncRoomStarts();
+    refreshCrowd(); syncPending(); syncRoomStarts(); syncProfile();
     setInterval(refreshCrowd, 30000);
     setInterval(function () { if (state.tab === 'today' && currentRoom() && document.visibilityState !== 'hidden') refreshRoom(); }, 20000);
   }
