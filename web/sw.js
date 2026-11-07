@@ -1,6 +1,6 @@
 // 같이 일어나요 — 오프라인에서도 앱이 열리게 하는 서비스 워커
 // 앱 파일을 바꿔 배포할 때는 VERSION을 올려 주세요.
-const VERSION = 'gachi-v0.4.1';
+const VERSION = 'gachi-v0.5.0';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './config.js', './icons/icon-192.png', './icons/icon-512.png', './og.png'];
 
 self.addEventListener('install', (e) => {
@@ -19,16 +19,32 @@ self.addEventListener('fetch', (e) => {
   const url = new URL(req.url);
   // 공유 서버·폰트 등 다른 주소는 그대로 네트워크로
   if (req.method !== 'GET' || url.origin !== self.location.origin) return;
-  // 같은 주소: 저장된 화면을 먼저 보여주고, 뒤에서 새 버전을 받아 둠
-  e.respondWith(
-    caches.open(VERSION).then((cache) =>
-      cache.match(req, { ignoreSearch: true }).then((hit) => {
-        const net = fetch(req).then((res) => {
-          if (res && res.ok) cache.put(req, res.clone());
-          return res;
-        }).catch(() => hit || cache.match('./index.html'));
-        return hit || net;
-      })
-    )
-  );
+  const page = req.mode === 'navigate' || /\/(index\.html)?$/.test(url.pathname) || url.pathname.endsWith('/config.js');
+  e.respondWith(page ? networkFirst(req) : staleWhileRevalidate(req));
 });
+
+// 앱 화면(index.html): 새 버전을 먼저 받아 보고, 인터넷이 없거나 4초 넘게 걸리면 저장된 화면
+function networkFirst(req) {
+  return caches.open(VERSION).then((cache) => {
+    const net = fetch(req, { cache: 'no-cache' }).then((res) => {
+      if (res && res.ok) cache.put(req, res.clone());
+      return res;
+    });
+    const fallback = () => cache.match(req, { ignoreSearch: true }).then((hit) => hit || cache.match('./index.html'));
+    const slow = new Promise((resolve) => setTimeout(resolve, 4000)).then(fallback);
+    return Promise.race([net.catch(fallback), slow.then((hit) => hit || net)]).then((res) => res || net);
+  });
+}
+
+// 아이콘 등: 저장된 것을 먼저 보여주고, 뒤에서 새 것으로 바꿔 둠
+function staleWhileRevalidate(req) {
+  return caches.open(VERSION).then((cache) =>
+    cache.match(req, { ignoreSearch: true }).then((hit) => {
+      const net = fetch(req).then((res) => {
+        if (res && res.ok) cache.put(req, res.clone());
+        return res;
+      }).catch(() => hit || cache.match('./index.html'));
+      return hit || net;
+    })
+  );
+}

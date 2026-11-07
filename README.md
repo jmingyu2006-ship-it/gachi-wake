@@ -8,11 +8,11 @@
 - `docs/` — 배포되는 사이트 (GitHub Pages: main 브랜치 /docs)
 - `src/` — 앱 원본 (`logic.js` 계산, `app.html` 화면)
 - `web/` — 서비스 워커·매니페스트·config.js·supabase.sql·배포 안내 원본
-- `test/` — 로직 테스트 25개, 브라우저 테스트 23개 (우리 방·초대 코드 입력·프로필·방장 내보내기·계정 가입/로그인 흐름 포함)
+- `test/` — 로직 테스트 25개, 브라우저 테스트 24개 (우리 방·초대 코드 입력·프로필·방장 내보내기·계정 가입/로그인·새 버전 자동 적용 포함)
 
 ## 다시 빌드하기
 ```
 SITE_URL=https://jmingyu2006-ship-it.github.io/gachi-wake/ node build.js
 rm -rf docs && cp -r dist/web docs
 ```
-앱을 바꿔 올릴 때는 `web/sw.js`의 `VERSION`을 올려 주세요.
+앱을 바꿔 올릴 때는 `web/sw.js`의 `VERSION`을 올려 주세요. 열려 있던 앱은 돌아올 때 새 버전을 알아차리고 "새 버전이 있어요" 버튼을 띄우거나, 백그라운드에 있었으면 저절로 새로 고쳐요.

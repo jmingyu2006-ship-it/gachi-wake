@@ -37,7 +37,7 @@ const WEB_HEAD = [
   '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">',
   '<script src="config.js"></script>'
 ].join('\n');
-const WEB_INIT = "if ('serviceWorker' in navigator && location.protocol !== 'file:') { window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js').catch(function () {}); }); }";
+const WEB_INIT = "if ('serviceWorker' in navigator && location.protocol !== 'file:') { (function () { var had = !!navigator.serviceWorker.controller; navigator.serviceWorker.addEventListener('controllerchange', function () { if (had) { if (window.gachiUpdateReady) window.gachiUpdateReady(); } had = true; }); window.addEventListener('load', function () { navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(function (reg) { var check = function () { reg.update().catch(function () {}); }; document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') check(); }); setInterval(check, 30 * 60 * 1000); }).catch(function () {}); }); })(); }";
 
 function out(rel, content) { fs.mkdirSync(path.dirname(R('dist', rel)), { recursive: true }); fs.writeFileSync(R('dist', rel), content); }
 

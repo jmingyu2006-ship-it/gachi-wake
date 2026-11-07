@@ -165,6 +165,7 @@
 
   .toast { position: fixed; left: 50%; bottom: 96px; transform: translateX(-50%); width: calc(100% - 40px); max-width: 400px; background: var(--ink); color: var(--night); font-size: 14px; padding: 12px 16px; border-radius: 14px; text-align: center; opacity: 0; pointer-events: none; transition: opacity .2s; font-weight: 500; }
   .toast.show { opacity: 1; }
+  .update-bar { position: fixed; left: 50%; top: calc(env(safe-area-inset-top, 0px) + 10px); transform: translateX(-50%); z-index: 40; width: calc(100% - 40px); max-width: 400px; min-height: 48px; border: 0; border-radius: 14px; background: var(--lit); color: #1a1206; font-size: 15px; font-weight: 700; box-shadow: 0 6px 24px rgba(0,0,0,.35); }
 
   /* 시트·온보딩 */
   .overlay { position: fixed; inset: 0; background: rgba(6, 9, 18, .66); display: flex; align-items: flex-end; justify-content: center; z-index: 30; }
@@ -235,6 +236,7 @@
   </nav>
 </div>
 <div class="toast" id="toast" role="status"></div>
+<button type="button" class="update-bar" id="updateBar" hidden>새 버전이 있어요 · 눌러서 적용</button>
 <div class="overlay" id="sheet" hidden><div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" id="sheetBody"></div></div>
 <div class="ob" id="ob" hidden><div class="ob-inner" id="obBody" role="dialog" aria-modal="true" aria-labelledby="obTitle"></div></div>
 
@@ -1164,6 +1166,19 @@
     t.textContent = msg; t.classList.add('show');
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); }, 3200);
   }
+
+  // ---------- 새 버전 적용 ----------
+  // 새 서비스 워커가 자리를 잡으면 불림. 보고 있는 중이면 버튼을 띄우고, 앱을 내렸다가 돌아오면 알아서 새로 고침.
+  // 기록·설정은 기기 저장소에 있어서 새로 고쳐도 그대로.
+  var updateBar = document.getElementById('updateBar');
+  window.gachiUpdateReady = function () {
+    if (document.visibilityState === 'hidden') { location.reload(); return; }
+    updateBar.hidden = false;
+  };
+  updateBar.addEventListener('click', function () { updateBar.disabled = true; updateBar.textContent = '새 버전으로 바꾸는 중…'; location.reload(); });
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'hidden' && !updateBar.hidden) location.reload();
+  });
 
   // ---------- 계정 (아이디 + 비밀번호, 선택) ----------
   var ACC_ERR = {
