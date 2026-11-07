@@ -17,7 +17,7 @@ Netlify, Cloudflare Pages, Vercel 같은 다른 정적 호스팅도 이 폴더�
 설정하지 않으면 다른 사람 창문은 **예시 데이터**(하루 5,000명 가정)로 보여요. 실제 사용자끼리 창문을 공유하려면:
 
 1. [supabase.com](https://supabase.com)에서 새 프로젝트를 만들어요.
-2. 왼쪽 **SQL Editor**에 `supabase.sql`을 붙여 넣고 실행한 다음, `supabase-rooms.sql`(우리 방), `supabase-profiles.sql`(방 프로필), `supabase-owner-accounts.sql`(방장·계정)도 차례로 실행해요.
+2. 왼쪽 **SQL Editor**에 `supabase.sql`을 붙여 넣고 실행한 다음, `supabase-rooms.sql`(우리 방), `supabase-profiles.sql`(방 프로필), `supabase-owner-accounts.sql`(방장·계정), `supabase-nickname.sql`(이름 바꾸기)도 차례로 실행해요.
 3. **Project Settings → API**에서 `Project URL`과 `anon public` 키를 복사해요.
 4. `config.js`에 붙여 넣고 다시 올려요.
 

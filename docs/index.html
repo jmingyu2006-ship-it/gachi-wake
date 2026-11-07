@@ -112,6 +112,9 @@
   .account .row { display: flex; gap: 8px; margin-top: 10px; }
   .account .row button { flex: 1; }
   .field input[type=password] { letter-spacing: 1px; }
+  .check { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); margin: 2px 0 8px; min-height: 40px; }
+  .check input { width: 20px; height: 20px; accent-color: var(--lit); flex: none; }
+  .ghost.wide { width: 100%; margin-top: 14px; min-height: 46px; }
   .field input.code-input { font-family: var(--num); font-size: 22px; letter-spacing: 4px; text-align: center; text-transform: lowercase; }
   .field input.code-input::placeholder { letter-spacing: 1px; font-size: 16px; }
   .hint-small { font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
@@ -1399,6 +1402,7 @@
     banned: '이 방에는 다시 들어갈 수 없어요.',
     not_owner: '방장만 내보낼 수 있어요.',
     member_not_found: '이미 방에 없는 사람이에요.',
+    not_member: '이 방에 들어가 있지 않아요.',
     cannot_kick_self: '자기 자신은 내보낼 수 없어요. 대신 방 나가기를 써 주세요.'
   };
   function roomErr(code) { return ROOM_ERR[code] || '연결이 불안정해요. 잠시 후 다시 시도해 주세요.'; }
@@ -1451,10 +1455,13 @@
       '<div class="card" style="margin-top:12px"><div class="row-between"><div class="label">최근 7일</div><div class="label">' +
         (p.target ? '목표 달성 ' + p.hits + '일' : p.weekCount + '일 기록') + '</div></div><div class="week">' + cells + '</div>' +
         (p.avg7 ? '<p class="status-sub">최근 7일 평균 ' + p.avg7 + '에 시작' + (p.target ? ' · 목표 ' + p.target : '') + '</p>' : '') + '</div>' +
+      (p.me ? '<div id="nickBox"><button type="button" class="ghost wide" id="nickEdit">이름 바꾸기</button></div>' : '') +
       (canKick ? '<button type="button" class="danger" id="kickBtn">이 방에서 내보내기</button><p class="hint-small" style="text-align:center">내보낸 사람은 이 방에 다시 들어올 수 없어요.</p>' : '') +
       '<button type="button" class="close-btn" id="closeSheet">닫기</button>';
     document.getElementById('sheet').hidden = false;
     el.querySelector('#closeSheet').addEventListener('click', closeSheet);
+    var ne = el.querySelector('#nickEdit');
+    if (ne) ne.addEventListener('click', function () { openNickEdit(el.querySelector('#nickBox'), room, p.name); });
     var kb = el.querySelector('#kickBtn');
     if (kb) kb.addEventListener('click', function () {
       if (!kb.dataset.armed) { kb.dataset.armed = '1'; kb.textContent = '한 번 더 누르면 ' + p.name + ' 님을 내보내요'; return; }
@@ -1465,6 +1472,34 @@
       }).catch(function () { kb.disabled = false; toast('연결이 불안정해요. 잠시 후 다시 시도해 주세요.'); });
     });
     el.querySelector('h2').setAttribute('tabindex', '-1'); el.querySelector('h2').focus();
+  }
+  // 내 이름 바꾸기: 이 방만, 또는 내가 들어간 모든 방
+  function openNickEdit(box, room, current) {
+    var many = state.rooms.length > 1;
+    box.innerHTML = '<div class="field" style="margin-top:14px"><label for="newNick">새 이름 (10자까지)</label><input id="newNick" maxlength="10" autocomplete="nickname" value="' + esc(current) + '"></div>' +
+      (many ? '<label class="check"><input type="checkbox" id="nickAll" checked> 내가 들어간 모든 방(' + state.rooms.length + '개)에서 바꾸기</label>' : '') +
+      '<div class="err" id="nickErr" role="alert"></div><button type="button" class="primary" id="nickSave" style="width:100%;margin-top:6px">이름 저장</button>';
+    var input = box.querySelector('#newNick'), err = box.querySelector('#nickErr'), btn = box.querySelector('#nickSave');
+    input.focus(); input.select();
+    var save = function () {
+      if (btn.disabled) return;
+      var nick = L.sanitizeName(input.value, 10), all = many && box.querySelector('#nickAll').checked;
+      if (!nick) { err.textContent = ROOM_ERR.bad_nickname; return; }
+      btn.disabled = true; err.textContent = '';
+      Server.rpc('set_nickname', { p_anon: anonId, p_code: room.code, p_nickname: nick, p_all: all }).then(function (res) {
+        if (!res || res.error) { btn.disabled = false; err.textContent = roomErr(res && res.error); return; }
+        var nk = String(res.nickname || nick);
+        state.nick = nk; Local.set(K.nick, nk); saveAccountSoon();
+        Object.keys(state.roomData).forEach(function (code) {
+          var v = state.roomData[code] && state.roomData[code].view;
+          if (v && (all || code === room.code)) v.members.forEach(function (m) { if (m.me) m.nickname = nk; });
+        });
+        closeSheet(); updateRoomScene(); refreshRoom();
+        toast("이름을 '" + nk + "'(으)로 바꿨어요." + (all ? ' 모든 방에 적용됐어요.' : ''));
+      }).catch(function (x) { btn.disabled = false; err.textContent = roomErr(x && x.message); });
+    };
+    btn.addEventListener('click', save);
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); save(); } });
   }
   function switchHtml() {
     return '<div class="switch" role="group" aria-label="볼 건물 고르기">' +

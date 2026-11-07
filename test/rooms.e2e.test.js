@@ -88,6 +88,14 @@ function mockServer() {
       if (t.anon === body.p_anon) return json({ error: 'cannot_kick_self' });
       st.bans.add(c + t.anon); return json({ ok: true });
     }
+    if (fn === 'set_nickname') {
+      const nk = String(body.p_nickname).trim();
+      if (!nk || nk.length > 10 || /[<>]/.test(nk)) return json({ message: 'bad_nickname' }, 400);
+      if (!body.p_all && !isMember(body.p_code, body.p_anon)) return json({ error: 'not_member' });
+      let n = 0;
+      for (const m of st.members) if (m.anon === body.p_anon && isMember(m.code, m.anon) && (body.p_all || m.code === body.p_code)) { m.nick = nk; n++; }
+      return json({ ok: true, nickname: nk, rooms: n });
+    }
     if (fn === 'sign_up') {
       const u = String(body.p_username).trim().toLowerCase();
       if (!/^[a-z0-9_.]{4,20}$/.test(u)) return json({ error: 'bad_username' });
@@ -493,6 +501,64 @@ test('초대 코드만 쳐서 들어가기: 틀린 코드 안내 → 대문자·
   await fr.getByText('이미 들어와 있는 방이에요.').waitFor();
   assert.equal(await fr.getByRole('button', { name: '새벽반' }).getAttribute('aria-pressed'), 'true');
   assert.equal(srv.st.members.filter(m => m.code === code).length, 2, '두 번 들어가지 않음');
+  assert.deepEqual(me.errors, []); assert.deepEqual(fr.errors, []);
+  await me.context().close(); await fr.context().close();
+});
+
+test('내 이름 바꾸기: 모든 방에 / 이 방에서만, 친구 화면에도 바뀐 이름', async () => {
+  const srv = mockServer();
+  const me = await person('2026-11-09T06:30:00', srv);
+  await onboard(me);
+  for (const name of ['새벽반', '스터디']) {
+    await me.getByRole('button', { name: '+ 방 만들기' }).click();
+    await me.getByLabel('방 이름 (20자까지)').fill(name);
+    await me.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민규');
+    await me.getByRole('button', { name: '방 만들기', exact: true }).click();
+    await me.getByText("'" + name + "' 방을 만들었어요").waitFor();
+    await me.getByRole('button', { name: '닫기' }).click();
+  }
+  const code1 = [...srv.st.rooms.entries()].find(([, n]) => n === '새벽반')[0];
+  const fr = await person('2026-11-09T06:40:00', srv, BASE + '?room=' + code1);
+  await onboard(fr);
+  await fr.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민수');
+  await fr.getByRole('button', { name: '들어가기', exact: true }).click();
+  await fr.getByText('0명 / 2명이 하루를 시작했어요').waitFor();
+  // 친구 프로필에는 이름 바꾸기 없음
+  await unit(fr, '민규').click();
+  assert.equal(await fr.getByRole('button', { name: '이름 바꾸기' }).count(), 0);
+  await fr.getByRole('button', { name: '닫기' }).click();
+
+  // 나: 새벽반에서 내 창문 → 이름 바꾸기 (모든 방)
+  await me.getByRole('button', { name: '새벽반' }).click();
+  await me.clock.runFor(21000);
+  await unit(me, '민규').click();
+  await me.getByRole('button', { name: '이름 바꾸기' }).click();
+  const input = me.getByLabel('새 이름 (10자까지)');
+  assert.equal(await input.inputValue(), '민규');
+  await input.fill('<>');
+  await me.getByRole('button', { name: '이름 저장' }).click();
+  await me.getByText('이름은 1~10자로 적어 주세요. < > 는 쓸 수 없어요.').waitFor();
+  await input.fill('일찍새');
+  assert.equal(await me.getByLabel(/모든 방\(2개\)/).isChecked(), true);
+  await me.getByRole('button', { name: '이름 저장' }).click();
+  await me.getByText("이름을 '일찍새'(으)로 바꿨어요. 모든 방에 적용됐어요.").waitFor();
+  await unit(me, '일찍새 (나)').waitFor();
+  assert.deepEqual(srv.st.members.filter(m => m.nick === '일찍새').length, 2);
+  // 친구 화면: 다음 새로 고침에 바뀐 이름
+  await fr.clock.runFor(21000);
+  await unit(fr, '일찍새').waitFor();
+
+  // 이 방에서만
+  await unit(me, '일찍새').click();
+  await me.getByRole('button', { name: '이름 바꾸기' }).click();
+  await me.getByLabel('새 이름 (10자까지)').fill('민규');
+  await me.getByLabel(/모든 방/).uncheck();
+  await me.getByLabel('새 이름 (10자까지)').press('Enter');
+  await me.getByText("이름을 '민규'(으)로 바꿨어요.").waitFor();
+  assert.deepEqual(srv.st.members.map(m => [srv.st.rooms.get(m.code), m.nick]).sort(), [['새벽반', '민규'], ['새벽반', '민수'], ['스터디', '일찍새']].sort());
+  // 새로 만드는 방에는 마지막 이름이 미리 채워짐
+  await me.getByRole('button', { name: '+ 방 만들기' }).click();
+  assert.equal(await me.getByLabel('방에서 보일 내 이름 (10자까지)').inputValue(), '민규');
   assert.deepEqual(me.errors, []); assert.deepEqual(fr.errors, []);
   await me.context().close(); await fr.context().close();
 });
