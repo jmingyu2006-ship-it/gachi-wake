@@ -112,6 +112,8 @@
   .account .row { display: flex; gap: 8px; margin-top: 10px; }
   .account .row button { flex: 1; }
   .field input[type=password] { letter-spacing: 1px; }
+  .field input.code-input { font-family: var(--num); font-size: 22px; letter-spacing: 4px; text-align: center; text-transform: lowercase; }
+  .field input.code-input::placeholder { letter-spacing: 1px; font-size: 16px; }
   .hint-small { font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
   .link-btn.quiet { color: var(--muted); font-weight: 500; font-size: 13px; }
   .scene-sub:empty { display: none; }
@@ -554,10 +556,29 @@
     var t = text.replace(/[\u0000-\u001F\u007F<>]/g, '').replace(/\s+/g, ' ').trim();
     return Array.from(t).slice(0, max).join('');
   }
+  // 한글 자판인 채로 코드를 치면 '아ㅠ2' 처럼 들어온다 → 두벌식 자판 위치로 되돌린다 (아=d+k, ㅠ=b)
+  var KO_I = 'r R s e E f a q Q t T d w W c z x v g'.split(' ');
+  var KO_V = 'k o i O j p u P h hk ho hl y n nj np nl b m ml l'.split(' ');
+  var KO_F = ' r R rt s sw sg e f fr fa fq ft fx fv fg a q qt t T d w c z x v g'.split(' ');
+  var KO_J = 'r R rt s sw sg e E f fr fa fq ft fx fv fg a q Q qt t T d w W c z x v g'.split(' ').concat(KO_V);
+  function hangulToKeys(s) {
+    var out = '';
+    for (var i = 0; i < s.length; i++) {
+      var c = s.charCodeAt(i);
+      if (c >= 0xAC00 && c <= 0xD7A3) { var n = c - 0xAC00; out += KO_I[Math.floor(n / 588)] + KO_V[Math.floor((n % 588) / 28)] + KO_F[n % 28]; }
+      else if (c >= 0x3131 && c <= 0x3163) out += KO_J[c - 0x3131];
+      else out += s.charAt(i);
+    }
+    return out;
+  }
+  // 초대 링크, 링크가 들어간 공유 문구, 직접 친 코드(대문자·띄어쓰기·하이픈·한글 자판) 모두 받는다
   function parseRoomCode(input) {
     if (typeof input !== 'string') return null;
-    var m = input.match(/[?&]room=([^&#]*)/);
-    var c = (m ? decodeURIComponent(m[1]) : input).trim().toLowerCase();
+    var m = input.match(/[?&]room=([^&#\s]*)/), c;
+    try { c = m ? decodeURIComponent(m[1]) : input; } catch (e) { return null; }
+    c = c.replace(/[\s\-]/g, '');
+    if (ROOM_RE.test(c.toLowerCase())) return c.toLowerCase();
+    c = hangulToKeys(c).toLowerCase();
     return ROOM_RE.test(c) ? c : null;
   }
   function inviteUrl(site, code) { return site ? site + (site.indexOf('?') >= 0 ? '&' : '?') + 'room=' + code : ''; }
@@ -1354,7 +1375,7 @@
     } else copyLink(url, text);
   }
   function shareInvite(room) {
-    doShare(L.inviteUrl(siteUrl(), room.code), "'" + room.name + "' 방에서 같이 일어나자! 하루를 시작하면 내 창문에 불이 켜져.");
+    doShare(L.inviteUrl(siteUrl(), room.code), "'" + room.name + "' 방에서 같이 일어나자! 하루를 시작하면 내 창문에 불이 켜져. (초대 코드 " + room.code + ")");
   }
   function onShare() {
     var room = currentRoom();
@@ -1367,7 +1388,7 @@
 
   // ---------- 우리 방 ----------
   var ROOM_ERR = {
-    room_not_found: '방을 찾을 수 없어요. 초대 링크를 다시 확인해 주세요.',
+    room_not_found: '방을 찾을 수 없어요. 초대 코드나 링크를 다시 확인해 주세요.',
     room_full: '방이 가득 찼어요 (최대 50명).',
     too_many_rooms: '방은 10개까지 들어갈 수 있어요.',
     bad_nickname: '이름은 1~10자로 적어 주세요. < > 는 쓸 수 없어요.',
@@ -1447,7 +1468,7 @@
     return '<div class="switch" role="group" aria-label="볼 건물 고르기">' +
       '<button type="button" data-view="all" aria-pressed="' + (state.view === 'all' || !currentRoom()) + '">전체 사용자</button>' +
       state.rooms.map(function (r) { return '<button type="button" data-view="' + esc(r.code) + '" aria-pressed="' + (state.view === r.code) + '">' + esc(r.name) + '</button>'; }).join('') +
-      '<button type="button" class="add" data-create-room>+ 방 만들기</button></div>';
+      '<button type="button" class="add" data-create-room>+ 방 만들기</button><button type="button" class="add" data-code-room>코드로 들어가기</button></div>';
   }
   function roomSceneHtml(room) {
     return '<div class="scene" id="roomScene">' + scene.querySelector('.sky').outerHTML +
@@ -1500,7 +1521,7 @@
   }
   function openCreateRoom() {
     var el = document.getElementById('sheetBody');
-    el.innerHTML = '<h2 id="sheetTitle">우리 방 만들기</h2><p class="lead">초대 링크를 받은 친구만 들어올 수 있어요. 방 안에서는 서로의 이름, 목표 시각, 최근 66일의 하루 시작 기록(연속 일수 등)이 보여요.</p>' +
+    el.innerHTML = '<h2 id="sheetTitle">우리 방 만들기</h2><p class="lead">초대 링크나 초대 코드를 받은 친구만 들어올 수 있어요. 방 안에서는 서로의 이름, 목표 시각, 최근 66일의 하루 시작 기록(연속 일수 등)이 보여요.</p>' +
       '<div class="field"><label for="roomName">방 이름 (20자까지)</label><input id="roomName" maxlength="20" value="우리 방"></div>' + nickField('nick') +
       '<div class="err" id="roomErr" role="alert"></div><button type="button" class="primary" id="doCreate" style="width:100%;margin-top:6px">방 만들기</button>' +
       '<button type="button" class="close-btn" id="closeSheet">닫기</button>';
@@ -1517,7 +1538,7 @@
         if (!L.parseRoomCode(String(code))) throw new Error('bad_response');
         state.nick = nick; Local.set(K.nick, nick);
         addRoom(code, name);
-        el.innerHTML = '<h2 id="sheetTitle">\'' + esc(name) + '\' 방을 만들었어요</h2><p class="lead">초대 링크를 친구에게 보내면, 친구가 하루를 시작할 때 이 방 건물에 이름과 함께 불이 켜져요.</p>' +
+        el.innerHTML = '<h2 id="sheetTitle">\'' + esc(name) + '\' 방을 만들었어요</h2><p class="lead">초대 링크를 보내거나 초대 코드를 알려 주면, 친구가 하루를 시작할 때 이 방 건물에 이름과 함께 불이 켜져요.</p>' +
           '<div class="note">초대 코드 <span class="code">' + esc(code) + '</span></div>' +
           '<button type="button" class="primary" id="sendInvite" style="width:100%;margin-top:14px">초대 링크 보내기</button><button type="button" class="close-btn" id="closeSheet">닫기</button>';
         el.querySelector('#closeSheet').addEventListener('click', closeSheet);
@@ -1526,9 +1547,10 @@
       }).catch(function (x) { btn.disabled = false; err.textContent = roomErr(x && x.message); });
     });
   }
-  function openJoin(code) {
-    Server.rpc('room_preview', { p_code: code }).then(function (p) {
-      if (!p || p.error) { toast(roomErr(p && p.error)); return; }
+  function openJoin(code, onErr) {
+    var fail = onErr || toast;
+    return Server.rpc('room_preview', { p_code: code }).then(function (p) {
+      if (!p || p.error) { fail(roomErr(p && p.error)); return; }
       var el = document.getElementById('sheetBody');
       el.innerHTML = '<h2 id="sheetTitle">\'' + esc(L.sanitizeName(String(p.name || ''), 20)) + '\' 방에 초대됐어요</h2>' +
         '<p class="lead">지금 ' + Number(p.members || 0) + '명이 있어요. 들어가면 서로의 이름, 목표 시각, 최근 66일의 하루 시작 기록(연속 일수 등)이 이 방 사람들에게 보여요. 전체 사용자 건물에는 지금처럼 이름 없이 보여요.</p>' +
@@ -1549,7 +1571,33 @@
           toast("'" + (res.name || '우리 방') + "' 방에 들어왔어요.");
         }).catch(function (x) { btn.disabled = false; err.textContent = roomErr(x && x.message); });
       });
-    }).catch(function (x) { toast(roomErr(x && x.message)); });
+    }).catch(function (x) { fail(roomErr(x && x.message)); });
+  }
+  // 초대 코드를 직접 쳐서 들어가기 (링크·공유 문구를 붙여 넣어도 됨)
+  function openCodeJoin() {
+    var el = document.getElementById('sheetBody');
+    el.innerHTML = '<h2 id="sheetTitle">초대 코드로 들어가기</h2><p class="lead">친구에게 받은 6자리 초대 코드를 적어 주세요. 초대 링크를 붙여 넣어도 돼요.</p>' +
+      '<div class="field"><label for="joinCode">초대 코드 (6자리)</label><input id="joinCode" class="code-input" autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false" enterkeyhint="go" maxlength="300" placeholder="예: k7m2qp"></div>' +
+      '<div class="err" id="codeErr" role="alert"></div><button type="button" class="primary" id="doCode" style="width:100%;margin-top:6px">다음</button>' +
+      '<button type="button" class="close-btn" id="closeSheet">닫기</button>';
+    document.getElementById('sheet').hidden = false;
+    var input = el.querySelector('#joinCode'), err = el.querySelector('#codeErr'), btn = el.querySelector('#doCode');
+    el.querySelector('#closeSheet').addEventListener('click', closeSheet);
+    input.focus();
+    input.addEventListener('input', function () { err.textContent = ''; });
+    var go = function () {
+      if (btn.disabled) return;
+      var code = L.parseRoomCode(input.value);
+      if (!code) { err.textContent = '초대 코드는 영문 소문자와 숫자 6자리예요.'; input.focus(); return; }
+      input.value = code;
+      if (state.rooms.some(function (r) { return r.code === code; })) {
+        setView(code); state.tab = 'today'; closeSheet(); render(); refreshRoom(); toast('이미 들어와 있는 방이에요.'); return;
+      }
+      btn.disabled = true; err.textContent = '';
+      openJoin(code, function (msg) { btn.disabled = false; err.textContent = msg; input.focus(); });
+    };
+    btn.addEventListener('click', go);
+    input.addEventListener('keydown', function (e) { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); go(); } });
   }
   function checkInvite() {
     var code = L.parseRoomCode(location.search);
@@ -1564,6 +1612,7 @@
     var v = e.target.closest('[data-view]');
     if (v) { setView(v.dataset.view); render(); return; }
     if (e.target.closest('[data-create-room]')) return openCreateRoom();
+    if (e.target.closest('[data-code-room]')) return openCodeJoin();
     var mb = e.target.closest('[data-member]');
     if (mb) return openProfile(+mb.dataset.member);
     if (e.target.closest('[data-invite]')) { var r = currentRoom(); if (r) shareInvite(r); return; }

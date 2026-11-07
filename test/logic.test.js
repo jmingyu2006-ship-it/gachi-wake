@@ -167,6 +167,15 @@ test('우리 방: 초대 코드 읽기, 초대 링크, 닉네임 정리', () => 
   assert.equal(L.parseRoomCode('47seay'), '47seay');
   assert.equal(L.parseRoomCode('?room=47sea1'), null, '1은 코드에 쓰지 않음');
   assert.equal(L.parseRoomCode('?room=<script>'), null);
+  // 직접 친 코드
+  assert.equal(L.parseRoomCode('  47S EAY '), '47seay', '대문자·띄어쓰기');
+  assert.equal(L.parseRoomCode('47s-eay'), '47seay', '하이픈');
+  assert.equal(L.parseRoomCode('47ㄴㄷ묘'), '47seay', '한글 자판: s=ㄴ e=ㄷ a=ㅁ y=ㅛ');
+  assert.equal(L.parseRoomCode('아ㅠ2ㅊ3'), 'dkb2c3', '완성된 글자도 자판 위치로 (아=d+k)');
+  assert.equal(L.parseRoomCode('ㅏ므ㅔ3ㅔ'), 'kamp3p', '모음으로 시작');
+  assert.equal(L.parseRoomCode("'새벽반' 방에서 같이 일어나자! https://x.github.io/gachi-wake/?room=47seay"), '47seay', '공유 문구째 붙여 넣기');
+  assert.equal(L.parseRoomCode('47sea'), null, '5자리');
+  assert.equal(L.parseRoomCode('?room=%E0%A4%A'), null, '깨진 주소');
   assert.equal(L.parseRoomCode(''), null);
   assert.equal(L.inviteUrl('https://x.github.io/gachi-wake/', '47seay'), 'https://x.github.io/gachi-wake/?room=47seay');
   assert.equal(L.inviteUrl('', '47seay'), '');

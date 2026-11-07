@@ -299,10 +299,29 @@
     var t = text.replace(/[\u0000-\u001F\u007F<>]/g, '').replace(/\s+/g, ' ').trim();
     return Array.from(t).slice(0, max).join('');
   }
+  // 한글 자판인 채로 코드를 치면 '아ㅠ2' 처럼 들어온다 → 두벌식 자판 위치로 되돌린다 (아=d+k, ㅠ=b)
+  var KO_I = 'r R s e E f a q Q t T d w W c z x v g'.split(' ');
+  var KO_V = 'k o i O j p u P h hk ho hl y n nj np nl b m ml l'.split(' ');
+  var KO_F = ' r R rt s sw sg e f fr fa fq ft fx fv fg a q qt t T d w c z x v g'.split(' ');
+  var KO_J = 'r R rt s sw sg e E f fr fa fq ft fx fv fg a q Q qt t T d w W c z x v g'.split(' ').concat(KO_V);
+  function hangulToKeys(s) {
+    var out = '';
+    for (var i = 0; i < s.length; i++) {
+      var c = s.charCodeAt(i);
+      if (c >= 0xAC00 && c <= 0xD7A3) { var n = c - 0xAC00; out += KO_I[Math.floor(n / 588)] + KO_V[Math.floor((n % 588) / 28)] + KO_F[n % 28]; }
+      else if (c >= 0x3131 && c <= 0x3163) out += KO_J[c - 0x3131];
+      else out += s.charAt(i);
+    }
+    return out;
+  }
+  // 초대 링크, 링크가 들어간 공유 문구, 직접 친 코드(대문자·띄어쓰기·하이픈·한글 자판) 모두 받는다
   function parseRoomCode(input) {
     if (typeof input !== 'string') return null;
-    var m = input.match(/[?&]room=([^&#]*)/);
-    var c = (m ? decodeURIComponent(m[1]) : input).trim().toLowerCase();
+    var m = input.match(/[?&]room=([^&#\s]*)/), c;
+    try { c = m ? decodeURIComponent(m[1]) : input; } catch (e) { return null; }
+    c = c.replace(/[\s\-]/g, '');
+    if (ROOM_RE.test(c.toLowerCase())) return c.toLowerCase();
+    c = hangulToKeys(c).toLowerCase();
     return ROOM_RE.test(c) ? c : null;
   }
   function inviteUrl(site, code) { return site ? site + (site.indexOf('?') >= 0 ? '&' : '?') + 'room=' + code : ''; }
