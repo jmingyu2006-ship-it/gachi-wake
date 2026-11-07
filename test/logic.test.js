@@ -135,24 +135,30 @@ test('취침 권장: 목표 07:00, 8시간 → 23:00 / 목표 05:00, 9시간 →
   assert.equal(L.bedtimeFor(240, 7), '21:00');
 });
 
-test('창문: 날짜마다 같은 배치, 내 창문은 다른 사람 불에 쓰이지 않고, 인원이 많으면 1칸 = N명', () => {
+test('창문: 1칸 = 1명, 날짜마다 같은 배치, 내 창문은 다른 사람에게 안 쓰임', () => {
   const a = L.litWindows(40, '2026-11-09', 5);
   assert.deepEqual(a, L.litWindows(40, '2026-11-09', 5));
+  assert.equal(a.per, 1);
+  assert.equal(a.total, 96);
   assert.equal(a.lit.length, 40);
   assert.ok(!a.lit.includes(5));
   assert.equal(new Set(a.lit).size, 40);
-  const b = L.litWindows(5000, '2026-11-09', 5);
-  assert.ok(b.per > 1);
-  assert.ok(b.lit.length <= 95);
   assert.equal(L.litWindows(0, '2026-11-09', 5).lit.length, 0);
-  // 하루 예상 5,000명 기준: 절반이 시작하면 창문도 절반쯤
-  const half = L.litWindows(2500, '2026-11-09', 5, 96, 5000);
-  assert.ok(half.lit.length >= 40 && half.lit.length <= 50, 'lit=' + half.lit.length);
-  // 실제 서버 초기(예상 인원 모름): 소수일 땐 1칸 = 1명, 많아지면 깔끔한 단위로
-  assert.equal(L.windowScale(30).per, 1);
-  assert.equal(L.windowScale(300).per, 5);
-  assert.ok(L.windowScale(300).lit <= 72);
   assert.ok(L.myWindow('abc') >= 0 && L.myWindow('abc') < 96);
+});
+
+test('창문: 96명을 넘으면 층이 올라가고, 이미 켜진 칸 자리는 그대로, 480칸 넘으면 외 N명', () => {
+  assert.equal(L.buildingSize(95), 96);
+  assert.equal(L.buildingSize(96), 108);   // 나까지 97명 → 9층
+  const before = L.litWindows(90, '2026-11-09', 5);
+  const after = L.litWindows(130, '2026-11-09', 5);
+  assert.equal(after.total, 132);
+  assert.equal(after.lit.length, 130);
+  assert.deepEqual(after.lit.slice(0, 90), before.lit, '먼저 켜진 90칸은 같은 자리');
+  const big = L.litWindows(1000, '2026-11-09', 5);
+  assert.equal(big.total, 480);
+  assert.equal(big.lit.length, 479);
+  assert.equal(big.overflow, 521);
 });
 
 test('서버 전송: 익명 id·날짜·30분 구간만 보낸다 (정확한 분·첫 행동은 안 보냄)', () => {
@@ -171,10 +177,10 @@ test('서버 응답 해석: 이상한 값은 무시하고 20칸으로 맞춘다'
   assert.deepEqual(L.parseServerCounts('oops'), new Array(20).fill(0));
 });
 
-test('예시 군중: 날짜 고정, 합계 약 5,000명, 시간이 갈수록 줄지 않음', () => {
+test('예시 군중: 날짜 고정, 합계 약 60명(친구 규모), 시간이 갈수록 줄지 않음', () => {
   const c = L.crowdForDay('2026-11-09');
   assert.deepEqual(c, L.crowdForDay('2026-11-09'));
-  assert.ok(Math.abs(c.reduce((x, y) => x + y, 0) - 5000) <= 20);
+  assert.ok(Math.abs(c.reduce((x, y) => x + y, 0) - 60) <= 5);
   let prev = -1;
   for (let m = 200; m <= 900; m += 7) { const v = L.awakeUntil(c, m); assert.ok(v >= prev); prev = v; }
 });

@@ -356,13 +356,21 @@
     var rand = (function (s) { return function () { s = (s * 9301 + 49297) % 233280; return s / 233280; }; })(7);
     for (var i = 0; i < 18; i++) sky += '<span class="star" style="left:' + Math.round(rand() * 92) + '%;top:' + Math.round(rand() * 80) + '%"></span>';
     sky += '<span class="orb"></span></div>';
-    var cells = '';
-    for (var w = 0; w < L.WINDOWS; w++) cells += '<span class="win" data-i="' + w + '"></span>';
-    scene.innerHTML = sky + '<div class="building" role="img" id="buildingImg" aria-label="불 켜진 창문"><div class="grid">' + cells + '</div></div><div class="ground"></div>' +
+    scene.innerHTML = sky + '<div class="building" role="img" id="buildingImg" aria-label="불 켜진 창문"><div class="grid" id="winGrid"></div></div><div class="ground"></div>' +
       '<div class="scene-meta"><span class="dot" id="liveDot"></span><span id="crowdLine">불러오는 중</span><span class="per" id="perLine"></span></div>' +
       '<div class="scene-sub" id="recentLine"></div>';
   })();
-  var winEls = Array.prototype.slice.call(scene.querySelectorAll('.win'));
+  // 창문: 1칸 = 1명. 0번이 맨 아래층 왼쪽이고, 사람이 늘면 위로 층이 올라간다.
+  var gridEl = scene.querySelector('#winGrid'), winEls = [], gridTotal = 0;
+  function buildGrid(total) {
+    var rows = total / L.COLS, html = '';
+    for (var r = 0; r < rows; r++) for (var c = 0; c < L.COLS; c++) html += '<span class="win" data-i="' + ((rows - 1 - r) * L.COLS + c) + '"></span>';
+    gridEl.innerHTML = html;
+    winEls = [];
+    gridEl.querySelectorAll('.win').forEach(function (el) { winEls[+el.dataset.i] = el; });
+    gridTotal = total;
+  }
+  buildGrid(L.WINDOWS);
   var firstPaint = true;
 
   function crowdBuckets(key) {
@@ -393,16 +401,19 @@
       per.textContent = ''; dot.className = 'dot demo';
       return;
     }
-    var lw = L.litWindows(count, key, ME, L.WINDOWS, Server.on ? 0 : L.DEMO_TOTAL);
+    var lw = L.litWindows(count, key, ME);
+    var grew = lw.total !== gridTotal;
+    if (grew) buildGrid(lw.total);
     var want = {}; lw.lit.forEach(function (i) { want[i] = true; });
     var stagger = firstPaint && !reduced;
+    var quiet = grew && !firstPaint; // 층이 늘어 다시 그릴 땐 깜빡임 없이
     winEls.forEach(function (el, i) {
       var isMe = i === ME;
       var on = isMe ? !!rec : !!want[i];
       el.classList.toggle('me', isMe);
       if (on && !el.classList.contains('on')) {
         el.classList.add('on');
-        if (!reduced && !isMe) {
+        if (!reduced && !isMe && !quiet) {
           el.classList.add('pop');
           el.style.animationDelay = stagger ? (Math.random() * 1.2).toFixed(2) + 's' : '0s';
           setTimeout(function () { el.classList.remove('pop'); el.style.animationDelay = ''; }, 2400);
@@ -412,7 +423,7 @@
     firstPaint = false;
     var people = count + (rec ? 1 : 0);
     line.innerHTML = people ? '<b class="num">' + people.toLocaleString('ko-KR') + '명</b>이 하루를 시작했어요' : '아직 아무도 없어요. 첫 창문을 켜 보세요';
-    per.textContent = lw.per > 1 ? '창문 1칸 = ' + lw.per + '명' : '';
+    per.textContent = lw.overflow ? '외 ' + lw.overflow.toLocaleString('ko-KR') + '명' : '';
     var recent = Server.on ? '모든 사용자 기준 · 30초마다 새로 고침' : '';
     if (!Server.on && L.dayPhase(L.minuteOfDay(now)) === 'open') {
       var rc = L.recentCount(L.crowdForDay(key), nowMinuteFrac(now), 10);
@@ -454,7 +465,7 @@
     document.querySelectorAll('nav.tabs button').forEach(function (b) {
       if (b.dataset.tab === state.tab) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
     });
-    document.getElementById('demoNote').textContent = Server.on ? '' : '프로토타입 · 다른 사람 창문은 예시예요 (하루 5,000명 가정)';
+    document.getElementById('demoNote').textContent = Server.on ? '' : '미리보기 · 다른 사람 창문은 예시예요 (하루 60명 가정)';
     if (!state.settings) { view.innerHTML = ''; return; }
     if (state.tab === 'habit') renderHabit(now); else renderToday(now);
   }

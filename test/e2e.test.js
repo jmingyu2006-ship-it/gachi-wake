@@ -254,6 +254,24 @@ test('공유 서버(모의): 익명 id·날짜·구간만 보내고, 서버 인�
   await c.close();
 });
 
+test('1칸 = 1명: 130명이면 건물이 11층으로 올라가고 창문 130개가 켜진다', async () => {
+  const c = await ctx();
+  const page = await open(c, '2026-11-09T07:40:00', {
+    route: async (p) => {
+      await p.route('**/config.js', r => r.fulfill({ contentType: 'text/javascript', body: "window.GACHI_CONFIG={supabaseUrl:'https://mock.supabase.test',supabaseAnonKey:'k'};" }));
+      await p.route('https://mock.supabase.test/**', r => r.fulfill({ contentType: 'application/json', body: JSON.stringify([{ bucket: 13, n: 60 }, { bucket: 14, n: 70 }]) }));
+    }
+  });
+  await onboard(page);
+  await page.getByText('130명').waitFor();
+  assert.equal(await page.locator('.win').count(), 132);
+  assert.equal(await page.locator('.win.on').count(), 130);
+  assert.equal(await page.locator('#perLine').textContent(), '');
+  await page.clock.runFor(2500);
+  await page.screenshot({ path: path.join(SHOTS, '09-130-people.png') });
+  await c.close();
+});
+
 test('공유 서버가 죽어도 앱은 동작하고, 다음에 열 때 다시 보낸다', async () => {
   const c = await ctx();
   let down = true; const posts = [];

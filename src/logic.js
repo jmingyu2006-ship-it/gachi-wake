@@ -13,8 +13,10 @@
   var HIT_TOL = 15;        // 목표 +15분까지 달성
   var CLOSE_TOL = 60;      // +60분까지 아쉬움
   var JOURNEY_DAYS = 66;   // Lally 외(2010) 중앙값
-  var WINDOWS = 96;        // 건물 창문 수 (8 x 12)
-  var DEMO_TOTAL = 5000;
+  var WINDOWS = 96;        // 기본 건물: 12칸 x 8층
+  var COLS = 12;
+  var MAX_WINDOWS = 480;   // 40층까지 올라가고, 그 이상은 '외 N명'
+  var DEMO_TOTAL = 60;     // 예시 모드: 친구 규모(하루 60명)
   var ACTION_MAX = 20;
 
   var WEEKDAY_W = [2, 4, 10, 22, 45, 80, 100, 85, 60, 40, 28, 20, 14, 10, 8, 6, 5, 4, 3, 2];
@@ -264,31 +266,30 @@
     return Math.max(0, awakeUntil(buckets, min) - awakeUntil(buckets, min - w));
   }
 
-  // 창문 배치: 날짜마다 고정된 순서로 불이 켜진다. 내 창문은 기기 id로 고정.
+  // 창문 배치: 1칸 = 1명. 날짜마다 고정된 순서로 불이 켜지고, 96칸을 넘으면 위로 층이 늘어난다.
+  // 층이 늘어도 이미 정해진 칸의 순서는 그대로다 (96칸 묶음마다 따로 섞음).
+  function buildingSize(others) {
+    var need = others + 1; // 다른 사람 + 나
+    return Math.min(MAX_WINDOWS, Math.max(WINDOWS, Math.ceil(need / COLS) * COLS));
+  }
   function windowOrder(seedKey, total) {
     total = total || WINDOWS;
-    var idx = [];
-    for (var i = 0; i < total; i++) idx.push(i);
-    var rand = mulberry32(hashString('w:' + seedKey));
-    for (var j = total - 1; j > 0; j--) { var k = Math.floor(rand() * (j + 1)); var t = idx[j]; idx[j] = idx[k]; idx[k] = t; }
-    return idx;
+    var out = [];
+    for (var b = 0; b * WINDOWS < total; b++) {
+      var idx = [];
+      for (var i = b * WINDOWS; i < Math.min(total, (b + 1) * WINDOWS); i++) idx.push(i);
+      var rand = mulberry32(hashString('w:' + seedKey + ':' + b));
+      for (var j = idx.length - 1; j > 0; j--) { var k = Math.floor(rand() * (j + 1)); var t = idx[j]; idx[j] = idx[k]; idx[k] = t; }
+      out = out.concat(idx);
+    }
+    return out;
   }
-  function myWindow(anonId, total) { return hashString('me:' + anonId) % (total || WINDOWS); }
-  // 창문 1칸 = 몇 명: 하루 예상 인원(expected)을 알면 그 기준으로 고정해 아침 동안 건물이 점점 차오르게,
-  // 모르면(실제 서버 초기) 1·2·5·10… 단위로 올려서 건물의 3/4을 넘지 않게
-  var NICE = [1, 2, 3, 5, 10, 20, 30, 50, 100, 200, 300, 500, 1000, 2000, 5000, 10000];
-  function windowScale(count, total, expected) {
-    total = total || WINDOWS;
-    var per;
-    if (expected) per = Math.max(1, Math.ceil(expected / (total * 0.9)));
-    else { per = NICE[NICE.length - 1]; for (var i = 0; i < NICE.length; i++) if (count / NICE[i] <= total * 0.75) { per = NICE[i]; break; } }
-    return { per: per, lit: Math.min(total - 1, Math.ceil(count / per)) };
-  }
-  function litWindows(count, seedKey, me, total, expected) {
-    total = total || WINDOWS;
-    var s = windowScale(count, total, expected);
+  function myWindow(anonId) { return hashString('me:' + anonId) % WINDOWS; } // 내 창문은 항상 아래 8층 안
+  function litWindows(count, seedKey, me) {
+    var total = buildingSize(count);
     var order = windowOrder(seedKey, total).filter(function (i) { return i !== me; });
-    return { per: s.per, lit: order.slice(0, Math.min(s.lit, order.length)) };
+    var lit = order.slice(0, Math.min(count, order.length));
+    return { per: 1, total: total, lit: lit, overflow: Math.max(0, count - lit.length) };
   }
 
   // ---------- 공유 서버(선택) ----------
@@ -311,6 +312,7 @@
 
   var api = {
     OPEN_MIN: OPEN_MIN, CLOSE_MIN: CLOSE_MIN, BUCKET: BUCKET, BUCKETS: BUCKETS, WINDOWS: WINDOWS,
+    COLS: COLS, MAX_WINDOWS: MAX_WINDOWS, buildingSize: buildingSize,
     STEP_MIN: STEP_MIN, STEP_DAYS: STEP_DAYS, HIT_TOL: HIT_TOL, JOURNEY_DAYS: JOURNEY_DAYS, DEMO_TOTAL: DEMO_TOTAL,
     TARGET_MIN_LO: TARGET_MIN_LO, TARGET_MIN_HI: TARGET_MIN_HI, ACTION_MAX: ACTION_MAX,
     toDateKey: toDateKey, minuteOfDay: minuteOfDay, formatMinute: formatMinute, toLocalISO: toLocalISO,
@@ -320,7 +322,7 @@
     validateRecord: validateRecord, cleanRecords: cleanRecords, mergeRecords: mergeRecords, findDay: findDay,
     createStartRecord: createStartRecord, markAction: markAction, evaluate: evaluate, habitStats: habitStats,
     crowdForDay: crowdForDay, awakeUntil: awakeUntil, recentCount: recentCount,
-    windowOrder: windowOrder, myWindow: myWindow, windowScale: windowScale, litWindows: litWindows,
+    windowOrder: windowOrder, myWindow: myWindow, litWindows: litWindows,
     serverPayload: serverPayload, parseServerCounts: parseServerCounts, hashString: hashString
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
