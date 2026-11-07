@@ -253,3 +253,40 @@ test('예시 군중: 날짜 고정, 합계 약 60명(친구 규모), 시간이 �
   let prev = -1;
   for (let m = 200; m <= 900; m += 7) { const v = L.awakeUntil(c, m); assert.ok(v >= prev); prev = v; }
 });
+
+test('계정: 아이디·비밀번호 규칙', () => {
+  assert.equal(L.validUsername(' Minkyu_01 '), true);
+  assert.equal(L.normUsername(' Minkyu_01 '), 'minkyu_01');
+  assert.equal(L.validUsername('abc'), false);
+  assert.equal(L.validUsername('한글아이디'), false);
+  assert.equal(L.validUsername('a'.repeat(21)), false);
+  assert.equal(L.validPassword('1234567'), false);
+  assert.equal(L.validPassword('12345678'), true);
+  assert.equal(L.validPassword('x'.repeat(65)), false);
+});
+
+test('계정: 로그인 시 계정 기록 + 이 기기 기록을 합치고, 목표는 계정 것 우선', () => {
+  const sA = L.makeSettings({ baselineMin: 480, targetMin: 420, sleepNeedH: 8, firstAction: '물' }, '2026-11-01').settings;
+  const sB = L.makeSettings({ baselineMin: 450, targetMin: 400, sleepNeedH: 9, firstAction: '커튼' }, '2026-11-05').settings;
+  const r1 = L.createStartRecord([], new Date(2026, 10, 3, 7, 0), sA).records;
+  const r2 = L.createStartRecord([], new Date(2026, 10, 7, 6, 50), sB).records;
+  const remote = L.accountData(sA, r1, [{ code: 'abc234', name: '새벽반' }], '민규');
+  const local = L.accountData(sB, r2, [{ code: 'xyz789', name: '<b>' }, { code: 'bad!!!', name: 'x' }], '');
+  const m = L.mergeAccount(local, remote);
+  assert.equal(m.settings.targetMin, 420, '계정 목표 우선');
+  assert.deepEqual(m.records.map(r => r.date), ['2026-11-03', '2026-11-07']);
+  assert.deepEqual(m.rooms, [{ code: 'abc234', name: '새벽반' }, { code: 'xyz789', name: 'b' }]);
+  assert.equal(m.nick, '민규');
+  // 계정에 목표가 없으면 기기 것
+  assert.equal(L.mergeAccount(local, { records: 'junk', settings: { bad: 1 } }).settings.targetMin, 400);
+  // 이상한 서버 데이터에도 안전
+  const z = L.mergeAccount(null, { records: [null, 3], rooms: 'x' });
+  assert.deepEqual(z.records, []); assert.deepEqual(z.rooms, []); assert.equal(z.settings, null);
+});
+
+test('방: 방장 표시와 멤버 키(12자리 16진수만)', () => {
+  const v = { members: [{ nickname: '방장', owner: true, me: true, key: 'a1b2c3d4e5f6' }, { nickname: '민수', key: '<script>' }] };
+  assert.deepEqual(L.roomSlots(v).slots.map(s => s.owner), [true, false]);
+  assert.equal(L.profileFromMember(v.members[0], '2026-11-08').key, 'a1b2c3d4e5f6');
+  assert.equal(L.profileFromMember(v.members[1], '2026-11-08').key, null);
+});

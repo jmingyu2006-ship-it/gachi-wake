@@ -312,7 +312,7 @@
     var slots = view.members.map(function (m) {
       var min = isInt(m.start_min) ? m.start_min : null;
       if (m.me && min === null && isInt(myLocalMin)) min = myLocalMin;
-      return { name: sanitizeName(String(m.nickname || ''), 10) || '?', me: !!m.me, min: min, time: min === null ? null : formatMinute(min) };
+      return { name: sanitizeName(String(m.nickname || ''), 10) || '?', me: !!m.me, owner: !!m.owner, min: min, time: min === null ? null : formatMinute(min) };
     });
     var started = slots.filter(function (s) { return s.min !== null; }).length;
     return { slots: slots, started: started, total: slots.length };
@@ -340,6 +340,8 @@
     return {
       name: sanitizeName(String(m.nickname || ''), 10) || '?',
       me: !!m.me,
+      owner: !!m.owner,
+      key: typeof m.key === 'string' && /^[0-9a-f]{12}$/.test(m.key) ? m.key : null,
       today: isInt(m.start_min) ? formatMinute(m.start_min) : null,
       target: target === null ? null : formatMinute(target),
       streak: isInt(m.streak) && m.streak >= 0 ? m.streak : 0,
@@ -356,6 +358,39 @@
   function recentStarts(records, todayKey) {
     return records.filter(function (r) { var d = daysBetween(r.date, todayKey); return d >= 0 && d <= 66; })
       .slice(-70).map(function (r) { return { d: r.date, m: r.minuteOfDay }; });
+  }
+
+  // ---------- 계정 (선택) ----------
+  var USER_RE = /^[a-z0-9_.]{4,20}$/;
+  function normUsername(u) { return typeof u === 'string' ? u.trim().toLowerCase() : ''; }
+  function validUsername(u) { return USER_RE.test(normUsername(u)); }
+  function validPassword(p) { return typeof p === 'string' && p.length >= 8 && p.length <= 64; }
+  function cleanRooms(list) {
+    if (!Array.isArray(list)) return [];
+    var seen = {}, out = [];
+    list.forEach(function (r) {
+      if (!r || typeof r.code !== 'string' || parseRoomCode(r.code) !== r.code || seen[r.code]) return;
+      seen[r.code] = true;
+      out.push({ code: r.code, name: sanitizeName(String(r.name || ''), 20) || '우리 방' });
+    });
+    return out.slice(0, 10);
+  }
+  // 계정에 보관할 묶음 (최근 400일 기록까지)
+  function accountData(settings, records, rooms, nick) {
+    return { v: 1, settings: settings || null, records: cleanRecords(records).slice(-400), rooms: cleanRooms(rooms), nick: sanitizeName(String(nick || ''), 10) };
+  }
+  // 로그인할 때: 계정의 묶음 + 이 기기의 기록을 합침. 목표는 계정 것이 우선, 없으면 기기 것.
+  function mergeAccount(local, remote) {
+    local = local || {}; remote = remote || {};
+    var rs = remote.settings && !validateSettings(remote.settings).length ? remote.settings : null;
+    var ls = local.settings && !validateSettings(local.settings).length ? local.settings : null;
+    return {
+      v: 1,
+      settings: rs || ls,
+      records: mergeRecords(remote.records, local.records).slice(-400),
+      rooms: cleanRooms([].concat(remote.rooms || [], local.rooms || [])),
+      nick: sanitizeName(String(remote.nick || local.nick || ''), 10)
+    };
   }
 
   // ---------- 공유 서버(선택) ----------
@@ -391,6 +426,8 @@
     windowOrder: windowOrder, myWindow: myWindow, litWindows: litWindows,
     sanitizeName: sanitizeName, parseRoomCode: parseRoomCode, inviteUrl: inviteUrl, roomSlots: roomSlots,
     profileFromMember: profileFromMember, recentStarts: recentStarts,
+    normUsername: normUsername, validUsername: validUsername, validPassword: validPassword, cleanRooms: cleanRooms,
+    accountData: accountData, mergeAccount: mergeAccount,
     serverPayload: serverPayload, parseServerCounts: parseServerCounts, hashString: hashString
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
