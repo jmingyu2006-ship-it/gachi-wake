@@ -251,6 +251,7 @@ test('공유 서버(모의): 익명 id·날짜·구간만 보내고, 서버 인�
   assert.equal(posts[0].bucket, 15);
   assert.match(posts[0].anon_id, /^[0-9a-f-]{36}$/);
   assert.equal(await page.locator('.win.on').count(), 6, '다른 사람 5 + 나 1');
+  assert.deepEqual(page.errors, [], '온보딩 중 서버 응답이 와도 화면 오류 없음');
   await c.close();
 });
 
@@ -341,6 +342,7 @@ test('공유 서버: 아직 아무도 없으면 빈 상태, 서버가 거절하�
   await page.reload();
   await page.clock.runFor(1500);
   assert.equal(posts, 1, '거절된 기록은 다시 보내지 않음');
+  assert.deepEqual(page.errors, []);
   await c.close();
 });
 

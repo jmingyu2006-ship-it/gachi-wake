@@ -161,6 +161,33 @@ test('창문: 96명을 넘으면 층이 올라가고, 이미 켜진 칸 자리�
   assert.equal(big.overflow, 521);
 });
 
+test('우리 방: 초대 코드 읽기, 초대 링크, 닉네임 정리', () => {
+  assert.equal(L.parseRoomCode('?room=47SEAY'), '47seay');
+  assert.equal(L.parseRoomCode('https://x.github.io/gachi-wake/?a=1&room=47seay#top'), '47seay');
+  assert.equal(L.parseRoomCode('47seay'), '47seay');
+  assert.equal(L.parseRoomCode('?room=47sea1'), null, '1은 코드에 쓰지 않음');
+  assert.equal(L.parseRoomCode('?room=<script>'), null);
+  assert.equal(L.parseRoomCode(''), null);
+  assert.equal(L.inviteUrl('https://x.github.io/gachi-wake/', '47seay'), 'https://x.github.io/gachi-wake/?room=47seay');
+  assert.equal(L.inviteUrl('', '47seay'), '');
+  assert.equal(L.sanitizeName('  민<b>수  ', 10), '민b수');
+  assert.equal(Array.from(L.sanitizeName('가'.repeat(30), 10)).length, 10);
+});
+
+test('우리 방: 서버 결과를 창문 칸으로, 내 기록은 서버에 아직 없어도 켜짐', () => {
+  const view = { code: '47seay', name: '우리 방', members: [
+    { nickname: '민규', start_min: null, me: true },
+    { nickname: '민수', start_min: 402, me: false },
+    { nickname: '지원', start_min: null, me: false }] };
+  const a = L.roomSlots(view, null);
+  assert.deepEqual(a.slots.map(s => [s.name, s.time, s.me]), [['민규', null, true], ['민수', '06:42', false], ['지원', null, false]]);
+  assert.equal(a.started, 1);
+  const b = L.roomSlots(view, 435);
+  assert.equal(b.slots[0].time, '07:15');
+  assert.equal(b.started, 2);
+  assert.equal(L.roomSlots(null).total, 0);
+});
+
 test('서버 전송: 익명 id·날짜·30분 구간만 보낸다 (정확한 분·첫 행동은 안 보냄)', () => {
   const rec = L.createStartRecord([], at(2026, 11, 9, 7, 40), S().settings).record;
   const p = L.serverPayload(rec, 'anon-1');

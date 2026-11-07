@@ -292,6 +292,32 @@
     return { per: 1, total: total, lit: lit, overflow: Math.max(0, count - lit.length) };
   }
 
+  // ---------- 우리 방 ----------
+  var ROOM_RE = /^[a-z2-9]{6}$/;
+  function sanitizeName(text, max) {
+    if (typeof text !== 'string') return '';
+    var t = text.replace(/[\u0000-\u001F\u007F<>]/g, '').replace(/\s+/g, ' ').trim();
+    return Array.from(t).slice(0, max).join('');
+  }
+  function parseRoomCode(input) {
+    if (typeof input !== 'string') return null;
+    var m = input.match(/[?&]room=([^&#]*)/);
+    var c = (m ? decodeURIComponent(m[1]) : input).trim().toLowerCase();
+    return ROOM_RE.test(c) ? c : null;
+  }
+  function inviteUrl(site, code) { return site ? site + (site.indexOf('?') >= 0 ? '&' : '?') + 'room=' + code : ''; }
+  // 서버 room_view 결과 → 화면용 칸. 내 시작 시각은 서버에 아직 안 올라갔어도 기기 기록으로 채운다.
+  function roomSlots(view, myLocalMin) {
+    if (!view || !Array.isArray(view.members)) return { slots: [], started: 0, total: 0 };
+    var slots = view.members.map(function (m) {
+      var min = isInt(m.start_min) ? m.start_min : null;
+      if (m.me && min === null && isInt(myLocalMin)) min = myLocalMin;
+      return { name: sanitizeName(String(m.nickname || ''), 10) || '?', me: !!m.me, min: min, time: min === null ? null : formatMinute(min) };
+    });
+    var started = slots.filter(function (s) { return s.min !== null; }).length;
+    return { slots: slots, started: started, total: slots.length };
+  }
+
   // ---------- 공유 서버(선택) ----------
   function serverPayload(rec, anonId) {
     return { anon_id: anonId, day: rec.date, bucket: Math.floor(rec.minuteOfDay / BUCKET) };
@@ -323,6 +349,7 @@
     createStartRecord: createStartRecord, markAction: markAction, evaluate: evaluate, habitStats: habitStats,
     crowdForDay: crowdForDay, awakeUntil: awakeUntil, recentCount: recentCount,
     windowOrder: windowOrder, myWindow: myWindow, litWindows: litWindows,
+    sanitizeName: sanitizeName, parseRoomCode: parseRoomCode, inviteUrl: inviteUrl, roomSlots: roomSlots,
     serverPayload: serverPayload, parseServerCounts: parseServerCounts, hashString: hashString
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

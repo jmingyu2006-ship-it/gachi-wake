@@ -65,6 +65,27 @@
   .dot.demo { background: var(--muted); animation: none; }
   @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(91,214,160,.6); } 70% { box-shadow: 0 0 0 8px rgba(91,214,160,0); } 100% { box-shadow: 0 0 0 0 rgba(91,214,160,0); } }
   .scene-sub { margin: -8px 2px 14px 18px; font-size: 12.5px; color: var(--muted); min-height: 0; }
+  /* 전체 / 우리 방 전환 */
+  .switch { display: flex; gap: 8px; overflow-x: auto; padding: 2px 2px 2px; scrollbar-width: none; }
+  .switch::-webkit-scrollbar { display: none; }
+  .switch button { flex: none; min-height: 40px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); font-size: 14px; font-weight: 700; padding: 0 14px; color: var(--muted); max-width: 180px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .switch button[aria-pressed="true"] { background: var(--ink); color: var(--night); border-color: var(--ink); }
+  .switch button.add { color: var(--lit); border-style: dashed; }
+  /* 방 건물: 창문마다 이름과 시각 */
+  .building.room { width: auto; padding: 16px 14px 14px; }
+  .room-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px 10px; }
+  .unit { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+  .unit .w { width: 100%; height: 42px; border-radius: 6px; background: var(--win); transition: background .4s, box-shadow .4s; }
+  .unit.on .w { background: var(--lit); box-shadow: 0 0 12px rgba(255,199,90,.5); }
+  .unit.pop .w { animation: flick .9s ease-out both; }
+  .unit.me.on .w { background: var(--sun); box-shadow: 0 0 16px rgba(255,138,76,.8); }
+  .unit .nm { font-size: 12.5px; font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); }
+  .unit.on .nm { color: var(--ink); }
+  .unit .tm { font-size: 11.5px; color: var(--dim); font-family: var(--num); }
+  .unit.on .tm { color: var(--lit); }
+  .unit.me.on .tm { color: var(--sun); }
+  .code { font-family: var(--num); letter-spacing: 1px; color: var(--ink); }
+  .link-btn.quiet { color: var(--muted); font-weight: 500; font-size: 13px; }
   .scene-sub:empty { display: none; }
   .per { margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
 
@@ -170,7 +191,7 @@
   h1[tabindex="-1"]:focus, h2[tabindex="-1"]:focus { outline: none; }
   .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
   @media (prefers-reduced-motion: reduce) {
-    .fade, .win.pop, .win.me.on, .win.blink, .dot { animation: none !important; }
+    .fade, .win.pop, .win.me.on, .win.blink, .dot, .unit.pop .w { animation: none !important; }
     .scene, .orb, .start-btn { transition: none; }
   }
 </style>
@@ -211,7 +232,7 @@
   'use strict';
   var L = window.WakeLogic;
   var CFG = window.GACHI_CONFIG || {};
-  var K = { settings: 'gachi-v2-settings', records: 'gachi-v2-records', anon: 'gachi-anon-id', pending: 'gachi-v2-pending', v1: 'gachi-wake-v1' };
+  var K = { settings: 'gachi-v2-settings', records: 'gachi-v2-records', anon: 'gachi-anon-id', pending: 'gachi-v2-pending', v1: 'gachi-wake-v1', rooms: 'gachi-v2-rooms', view: 'gachi-v2-view', nick: 'gachi-v2-nick', pendingRoom: 'gachi-v2-pending-room' };
   var TRIAL_TIMES = [348, 402, 435, 480, 570, 740];
   var ACTIONS = ['커튼 열고 햇빛 보기', '물 한 잔 마시기', '이불 개기', '스트레칭 1분'];
   var AGES = [{ id: '10', label: '10대', sleep: 9 }, { id: '20', label: '20대', sleep: 8 }, { id: '30', label: '30대 이상', sleep: 8 }];
@@ -219,7 +240,8 @@
 
   var state = {
     tab: 'today', settings: null, records: [], trial: null, justStarted: null,
-    crowd: null, crowdDay: null, serverOk: null, clearArmed: false, saving: Promise.resolve(), ob: null, edit: null
+    crowd: null, crowdDay: null, serverOk: null, clearArmed: false, saving: Promise.resolve(), ob: null, edit: null,
+    rooms: [], view: 'all', roomData: {}, roomSeen: {}, nick: '', invite: null, leaveArmed: false
   };
 
   // ---------- 기기 저장 ----------
@@ -285,6 +307,16 @@
           throw new Error('push ' + r.status);
         });
     },
+    rpc: function (name, args) {
+      return fetch(this.base + '/rest/v1/rpc/' + name, { method: 'POST', headers: this.headers(), body: JSON.stringify(args) })
+        .then(function (r) {
+          return r.text().then(function (t) {
+            var j = null; try { j = t ? JSON.parse(t) : null; } catch (e) { j = null; }
+            if (!r.ok) { var err = new Error((j && j.message) || ('http_' + r.status)); err.status = r.status; throw err; }
+            return j;
+          });
+        });
+    },
     counts: function (day) {
       return fetch(this.base + '/rest/v1/rpc/day_counts', { method: 'POST', headers: this.headers(), body: JSON.stringify({ p_day: day }) })
         .then(function (r) { if (!r.ok) throw new Error('counts ' + r.status); return r.json(); })
@@ -305,8 +337,27 @@
         Local.set(K.pending, pend);
         jobs.push(syncPending());
       }
+      if (Server.on && !state.trial && state.rooms.length) { queueRoomStart(rec.date); jobs.push(syncRoomStarts()); }
       return Promise.all(jobs);
     });
+  }
+  function queueRoomStart(day) {
+    var pend = Local.get(K.pendingRoom) || [];
+    if (pend.indexOf(day) < 0) { pend.push(day); Local.set(K.pendingRoom, pend); }
+  }
+  function syncRoomStarts() {
+    if (!Server.on || !state.rooms.length) return Promise.resolve();
+    var drop = function (day) { Local.set(K.pendingRoom, (Local.get(K.pendingRoom) || []).filter(function (d) { return d !== day; })); };
+    var pend = (Local.get(K.pendingRoom) || []).filter(function (d) { return typeof d === 'string'; });
+    return pend.reduce(function (p, day) {
+      return p.then(function () {
+        var rec = L.findDay(state.records, day);
+        if (!rec) return drop(day);
+        return Server.rpc('room_start', { p_anon: anonId, p_day: day, p_min: rec.minuteOfDay }).then(function () { drop(day); }, function (e) {
+          if (e.status >= 400 && e.status < 500 && e.status !== 408 && e.status !== 429) drop(day); else throw e;
+        });
+      });
+    }, Promise.resolve()).then(refreshRoom).catch(function () {});
   }
   function syncPending() {
     if (!Server.on) return Promise.resolve();
@@ -391,11 +442,12 @@
   }
 
   function updateScene() {
+    if (currentRoom()) return updateRoomScene();
     var now = effectiveNow(), key = L.toDateKey(now);
     var rec = L.findDay(currentRecords(), key);
     var count = othersCount(now);
     scene.classList.toggle('dawn', !!rec);
-    var line = document.getElementById('crowdLine'), per = document.getElementById('perLine'), dot = document.getElementById('liveDot');
+    var line = scene.querySelector('#crowdLine'), per = scene.querySelector('#perLine'), dot = scene.querySelector('#liveDot');
     if (count === null) {
       line.textContent = state.serverOk === false ? '지금은 함께 보기를 불러올 수 없어요' : '불러오는 중';
       per.textContent = ''; dot.className = 'dot demo';
@@ -429,9 +481,9 @@
       var rc = L.recentCount(L.crowdForDay(key), nowMinuteFrac(now), 10);
       if (rc > 0) recent = '최근 10분 동안 ' + rc.toLocaleString('ko-KR') + '명이 불을 켰어요';
     }
-    document.getElementById('recentLine').textContent = recent;
+    scene.querySelector('#recentLine').textContent = recent;
     dot.className = Server.on ? 'dot' : 'dot demo';
-    document.getElementById('buildingImg').setAttribute('aria-label', '불 켜진 창문 ' + (lw.lit.length + (rec ? 1 : 0)) + '개' + (rec ? ', 내 창문 포함' : ''));
+    scene.querySelector('#buildingImg').setAttribute('aria-label', '불 켜진 창문 ' + (lw.lit.length + (rec ? 1 : 0)) + '개' + (rec ? ', 내 창문 포함' : ''));
   }
   function blinkOne() {
     if (reduced) return;
@@ -474,7 +526,9 @@
     var s = state.settings, key = L.toDateKey(now), min = L.minuteOfDay(now);
     var rec = L.findDay(currentRecords(), key);
     var plan = L.planInfo(s, key);
-    var html = '<div id="sceneSlot"></div>';
+    var room = currentRoom();
+    state.leaveArmed = false;
+    var html = (Server.on ? switchHtml() : '') + (room ? roomSceneHtml(room) : '<div id="sceneSlot"></div>');
     if (rec) {
       var ev = L.evaluate(rec);
       var title, sub, badge;
@@ -522,9 +576,20 @@
         if (!state.trial) html += '<div class="center"><button type="button" class="link-btn" data-open-trial>아침 시간으로 체험해보기</button></div>';
       }
     }
+    if (room) {
+      html += '<section class="card action"><div><div class="label">초대 코드 <span class="code">' + esc(room.code) + '</span></div><div class="action-text">친구 초대하기</div></div>' +
+        '<button type="button" class="ghost" data-invite>초대</button></section>' +
+        '<div class="center"><button type="button" class="link-btn quiet" data-leave>이 방 나가기</button></div>';
+    }
     view.innerHTML = html;
-    document.getElementById('sceneSlot').appendChild(scene);
-    updateScene();
+    if (room) {
+      updateRoomScene();
+      var rd = state.roomData[room.code];
+      if (!rd || Date.now() - rd.at > 15000) refreshRoom();
+    } else {
+      document.getElementById('sceneSlot').appendChild(scene);
+      updateScene();
+    }
     var b = document.getElementById('startBtn'); if (b) b.addEventListener('click', onStart);
     var a = document.getElementById('actionBtn'); if (a) a.addEventListener('click', onAction);
   }
@@ -731,6 +796,7 @@
     state.ob = null;
     document.getElementById('ob').hidden = true;
     render();
+    if (state.invite) openJoin(state.invite);
   });
 
   function openSettings() {
@@ -811,15 +877,178 @@
       navigator.clipboard.writeText(text + '\n' + url).then(function () { toast('링크를 복사했어요. 친구에게 붙여 넣어 보내 주세요.'); }, fallback);
     } else fallback();
   }
-  function onShare() {
-    var url = siteUrl(), s = state.settings;
-    var text = s ? '나는 매일 ' + L.formatMinute(s.targetMin) + '에 하루를 시작하기로 했어. 같이 일어날래?' : '같이 하루를 시작해요.';
+  function doShare(url, text) {
     if (navigator.share && url) {
       navigator.share({ title: '같이 일어나요', text: text, url: url }).catch(function (e) { if (!e || e.name !== 'AbortError') copyLink(url, text); });
     } else copyLink(url, text);
   }
+  function shareInvite(room) {
+    doShare(L.inviteUrl(siteUrl(), room.code), "'" + room.name + "' 방에서 같이 일어나자! 하루를 시작하면 내 창문에 불이 켜져.");
+  }
+  function onShare() {
+    var room = currentRoom();
+    if (room) return shareInvite(room);
+    var s = state.settings;
+    doShare(siteUrl(), s ? '나는 매일 ' + L.formatMinute(s.targetMin) + '에 하루를 시작하기로 했어. 같이 일어날래?' : '같이 하루를 시작해요.');
+  }
   document.getElementById('shareBtn').addEventListener('click', onShare);
   view.addEventListener('click', function (e) { if (e.target.closest('[data-share]')) onShare(); });
+
+  // ---------- 우리 방 ----------
+  var ROOM_ERR = {
+    room_not_found: '방을 찾을 수 없어요. 초대 링크를 다시 확인해 주세요.',
+    room_full: '방이 가득 찼어요 (최대 50명).',
+    too_many_rooms: '방은 10개까지 들어갈 수 있어요.',
+    bad_nickname: '이름은 1~10자로 적어 주세요. < > 는 쓸 수 없어요.',
+    bad_room_name: '방 이름은 1~20자로 적어 주세요.',
+    rate_limited: '시도가 너무 많아요. 내일 다시 시도해 주세요.'
+  };
+  function roomErr(code) { return ROOM_ERR[code] || '연결이 불안정해요. 잠시 후 다시 시도해 주세요.'; }
+  function saveRooms() { Local.set(K.rooms, state.rooms); }
+  function setView(v) { state.view = v; Local.set(K.view, v); }
+  function currentRoom() {
+    if (!Server.on || state.view === 'all') return null;
+    for (var i = 0; i < state.rooms.length; i++) if (state.rooms[i].code === state.view) return state.rooms[i];
+    return null;
+  }
+  function addRoom(code, name) {
+    state.rooms = state.rooms.filter(function (r) { return r.code !== code; }).concat([{ code: code, name: name }]);
+    saveRooms(); setView(code);
+    var today = L.toDateKey(realNow());
+    if (L.findDay(state.records, today)) { queueRoomStart(today); syncRoomStarts(); }
+  }
+  function switchHtml() {
+    return '<div class="switch" role="group" aria-label="볼 건물 고르기">' +
+      '<button type="button" data-view="all" aria-pressed="' + (state.view === 'all' || !currentRoom()) + '">전체 사용자</button>' +
+      state.rooms.map(function (r) { return '<button type="button" data-view="' + esc(r.code) + '" aria-pressed="' + (state.view === r.code) + '">' + esc(r.name) + '</button>'; }).join('') +
+      '<button type="button" class="add" data-create-room>+ 방 만들기</button></div>';
+  }
+  function roomSceneHtml(room) {
+    return '<div class="scene" id="roomScene">' + scene.querySelector('.sky').outerHTML +
+      '<div class="building room" role="img" id="roomImg" aria-label="' + esc(room.name) + ' 건물"><div class="room-grid" id="roomGrid"></div></div><div class="ground"></div>' +
+      '<div class="scene-meta"><span class="dot" id="roomDot"></span><span id="roomLine">불러오는 중</span></div><div class="scene-sub" id="roomSub"></div></div>';
+  }
+  function updateRoomScene() {
+    var room = currentRoom(), grid = document.getElementById('roomGrid');
+    if (!room || !grid) return;
+    var now = effectiveNow(), key = L.toDateKey(now), rec = L.findDay(currentRecords(), key);
+    document.getElementById('roomScene').classList.toggle('dawn', !!rec);
+    var d = state.roomData[room.code], line = document.getElementById('roomLine'), sub = document.getElementById('roomSub');
+    if (!d || !d.view) {
+      line.textContent = d && d.error ? '방을 불러올 수 없어요. 잠시 후 다시 시도해요.' : '불러오는 중';
+      document.getElementById('roomDot').className = 'dot demo';
+      return;
+    }
+    var rs = L.roomSlots(d.view, rec ? rec.minuteOfDay : null);
+    var seen = state.roomSeen[room.code + key] || (state.roomSeen[room.code + key] = {});
+    grid.innerHTML = rs.slots.map(function (s, i) {
+      var id = i + ':' + s.name, on = s.min !== null, pop = on && !seen[id] && !reduced;
+      if (on) seen[id] = true;
+      return '<div class="unit' + (on ? ' on' : '') + (s.me ? ' me' : '') + (pop ? ' pop' : '') + '"><span class="w"></span>' +
+        '<span class="nm">' + esc(s.name) + (s.me ? ' (나)' : '') + '</span><span class="tm">' + (s.time || '아직') + '</span></div>';
+    }).join('');
+    document.getElementById('roomImg').setAttribute('aria-label', room.name + ' 건물: ' + rs.slots.map(function (s) { return s.name + (s.time ? ' ' + s.time + ' 시작' : ' 아직'); }).join(', '));
+    line.innerHTML = '<b class="num">' + rs.started + '명</b> / ' + rs.total + '명이 하루를 시작했어요';
+    sub.textContent = d.error ? '연결이 불안정해요 · 마지막으로 받은 내용이에요' : (rs.total < 2 ? '아직 혼자예요. 아래에서 친구를 초대해 보세요' : '20초마다 새로 고침');
+    document.getElementById('roomDot').className = d.error ? 'dot demo' : 'dot';
+  }
+  function refreshRoom() {
+    var room = currentRoom();
+    if (!room) return Promise.resolve();
+    var code = room.code, key = L.toDateKey(effectiveNow());
+    return Server.rpc('room_view', { p_anon: anonId, p_code: code, p_day: key }).then(function (v) {
+      if (v === null) {
+        state.rooms = state.rooms.filter(function (r) { return r.code !== code; }); saveRooms();
+        if (state.view === code) setView('all');
+        toast('방을 찾을 수 없어 목록에서 뺐어요.'); render(); return;
+      }
+      state.roomData[code] = { view: v, at: Date.now(), error: false };
+      if (v.name && v.name !== room.name) { room.name = v.name; saveRooms(); }
+    }).catch(function () {
+      state.roomData[code] = { view: (state.roomData[code] || {}).view || null, at: Date.now(), error: true };
+    }).then(function () { if (state.tab === 'today' && state.view === code) updateRoomScene(); });
+  }
+  function nickField(id) {
+    return '<div class="field"><label for="' + id + '">방에서 보일 내 이름 (10자까지)</label><input id="' + id + '" maxlength="10" autocomplete="nickname" value="' + esc(state.nick || '') + '"></div>';
+  }
+  function openCreateRoom() {
+    var el = document.getElementById('sheetBody');
+    el.innerHTML = '<h2 id="sheetTitle">우리 방 만들기</h2><p class="lead">초대 링크를 받은 친구만 들어올 수 있어요. 방 안에서는 서로의 이름과 하루 시작 시각이 보여요.</p>' +
+      '<div class="field"><label for="roomName">방 이름 (20자까지)</label><input id="roomName" maxlength="20" value="우리 방"></div>' + nickField('nick') +
+      '<div class="err" id="roomErr" role="alert"></div><button type="button" class="primary" id="doCreate" style="width:100%;margin-top:6px">방 만들기</button>' +
+      '<button type="button" class="close-btn" id="closeSheet">닫기</button>';
+    document.getElementById('sheet').hidden = false;
+    el.querySelector('#closeSheet').addEventListener('click', closeSheet);
+    el.querySelector(state.nick ? '#roomName' : '#nick').focus();
+    el.querySelector('#doCreate').addEventListener('click', function (e) {
+      var btn = e.currentTarget, err = el.querySelector('#roomErr');
+      var name = L.sanitizeName(el.querySelector('#roomName').value, 20), nick = L.sanitizeName(el.querySelector('#nick').value, 10);
+      if (!name) { err.textContent = ROOM_ERR.bad_room_name; return; }
+      if (!nick) { err.textContent = '방에서 보일 이름을 적어 주세요.'; return; }
+      btn.disabled = true; err.textContent = '';
+      Server.rpc('create_room', { p_anon: anonId, p_name: name, p_nickname: nick }).then(function (code) {
+        if (!L.parseRoomCode(String(code))) throw new Error('bad_response');
+        state.nick = nick; Local.set(K.nick, nick);
+        addRoom(code, name);
+        el.innerHTML = '<h2 id="sheetTitle">\'' + esc(name) + '\' 방을 만들었어요</h2><p class="lead">초대 링크를 친구에게 보내면, 친구가 하루를 시작할 때 이 방 건물에 이름과 함께 불이 켜져요.</p>' +
+          '<div class="note">초대 코드 <span class="code">' + esc(code) + '</span></div>' +
+          '<button type="button" class="primary" id="sendInvite" style="width:100%;margin-top:14px">초대 링크 보내기</button><button type="button" class="close-btn" id="closeSheet">닫기</button>';
+        el.querySelector('#closeSheet').addEventListener('click', closeSheet);
+        el.querySelector('#sendInvite').addEventListener('click', function () { shareInvite(currentRoom() || { code: code, name: name }); });
+        render(); refreshRoom();
+      }).catch(function (x) { btn.disabled = false; err.textContent = roomErr(x && x.message); });
+    });
+  }
+  function openJoin(code) {
+    Server.rpc('room_preview', { p_code: code }).then(function (p) {
+      if (!p || p.error) { toast(roomErr(p && p.error)); return; }
+      var el = document.getElementById('sheetBody');
+      el.innerHTML = '<h2 id="sheetTitle">\'' + esc(L.sanitizeName(String(p.name || ''), 20)) + '\' 방에 초대됐어요</h2>' +
+        '<p class="lead">지금 ' + Number(p.members || 0) + '명이 있어요. 들어가면 서로의 이름과 하루 시작 시각이 보여요. 전체 사용자 건물에는 지금처럼 이름 없이 보여요.</p>' +
+        nickField('joinNick') + '<div class="err" id="joinErr" role="alert"></div>' +
+        '<button type="button" class="primary" id="doJoin" style="width:100%;margin-top:6px">들어가기</button><button type="button" class="close-btn" id="closeSheet">나중에</button>';
+      document.getElementById('sheet').hidden = false;
+      el.querySelector('#closeSheet').addEventListener('click', function () { state.invite = null; closeSheet(); });
+      el.querySelector('#joinNick').focus();
+      el.querySelector('#doJoin').addEventListener('click', function (e) {
+        var btn = e.currentTarget, err = el.querySelector('#joinErr'), nick = L.sanitizeName(el.querySelector('#joinNick').value, 10);
+        if (!nick) { err.textContent = '방에서 보일 이름을 적어 주세요.'; return; }
+        btn.disabled = true; err.textContent = '';
+        Server.rpc('join_room', { p_anon: anonId, p_code: code, p_nickname: nick }).then(function (res) {
+          if (!res || res.error) { btn.disabled = false; err.textContent = roomErr(res && res.error); return; }
+          state.nick = nick; Local.set(K.nick, nick); state.invite = null;
+          addRoom(res.code, L.sanitizeName(String(res.name || ''), 20) || '우리 방');
+          state.tab = 'today'; closeSheet(); render(); refreshRoom();
+          toast("'" + (res.name || '우리 방') + "' 방에 들어왔어요.");
+        }).catch(function (x) { btn.disabled = false; err.textContent = roomErr(x && x.message); });
+      });
+    }).catch(function (x) { toast(roomErr(x && x.message)); });
+  }
+  function checkInvite() {
+    var code = L.parseRoomCode(location.search);
+    if (!code) return;
+    try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
+    if (!Server.on) { toast('초대 링크는 공개 주소에서 열어 주세요.'); return; }
+    if (state.rooms.some(function (r) { return r.code === code; })) { setView(code); state.tab = 'today'; render(); return; }
+    state.invite = code;
+    if (state.settings) openJoin(code);
+  }
+  view.addEventListener('click', function (e) {
+    var v = e.target.closest('[data-view]');
+    if (v) { setView(v.dataset.view); render(); return; }
+    if (e.target.closest('[data-create-room]')) return openCreateRoom();
+    if (e.target.closest('[data-invite]')) { var r = currentRoom(); if (r) shareInvite(r); return; }
+    var lv = e.target.closest('[data-leave]');
+    if (lv) {
+      var room = currentRoom(); if (!room) return;
+      if (!state.leaveArmed) { state.leaveArmed = true; lv.textContent = '한 번 더 누르면 이 방에서 나가요'; return; }
+      lv.disabled = true;
+      Server.rpc('leave_room', { p_anon: anonId, p_code: room.code }).then(function () {
+        state.rooms = state.rooms.filter(function (r) { return r.code !== room.code; }); saveRooms();
+        setView('all'); render(); toast("'" + room.name + "' 방에서 나왔어요.");
+      }).catch(function () { lv.disabled = false; toast('연결이 불안정해요. 잠시 후 다시 시도해 주세요.'); });
+    }
+  });
 
   var toastTimer = null;
   function toast(msg) {
@@ -832,6 +1061,11 @@
   var storedSettings = Local.get(K.settings);
   state.settings = storedSettings && !L.validateSettings(storedSettings).length ? storedSettings : null;
   state.records = L.mergeRecords(Local.get(K.records), Local.get(K.v1));
+  state.rooms = (Local.get(K.rooms) || []).filter(function (r) { return r && L.parseRoomCode(String(r.code)) === r.code && typeof r.name === 'string'; })
+    .map(function (r) { return { code: r.code, name: L.sanitizeName(r.name, 20) || '우리 방' }; });
+  var savedView = Local.get(K.view);
+  state.view = state.rooms.some(function (r) { return r.code === savedView; }) ? savedView : 'all';
+  state.nick = L.sanitizeName(String(Local.get(K.nick) || ''), 10);
 
   if (!state.settings) {
     state.ob = { step: 0, baselineMin: 480, targetMin: 420, action: ACTIONS[0], custom: false, age: null };
@@ -839,6 +1073,7 @@
     renderOnboarding();
   }
   render();
+  checkInvite();
 
   var lastKey = L.toDateKey(effectiveNow());
   setInterval(function () {
@@ -848,10 +1083,14 @@
     if (state.tab === 'today') {
       var phaseNow = L.dayPhase(L.minuteOfDay(effectiveNow()));
       if (phaseNow !== state.lastPhase) { state.lastPhase = phaseNow; render(); } else updateScene();
-      if (Math.random() < 0.35) blinkOne();
+      if (!currentRoom() && Math.random() < 0.35) blinkOne();
     }
   }, 4000);
-  if (Server.on) { refreshCrowd(); syncPending(); setInterval(refreshCrowd, 30000); }
+  if (Server.on) {
+    refreshCrowd(); syncPending(); syncRoomStarts();
+    setInterval(refreshCrowd, 30000);
+    setInterval(function () { if (state.tab === 'today' && currentRoom() && document.visibilityState !== 'hidden') refreshRoom(); }, 20000);
+  }
 
   Cloud.connect().then(function (ok) {
     if (!ok) return;
