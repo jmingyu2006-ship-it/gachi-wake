@@ -214,6 +214,9 @@
   .check { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); margin: 2px 0 8px; min-height: 40px; }
   .check input { width: 20px; height: 20px; accent-color: var(--lit); flex: none; }
   .check a, .legal-line a { color: var(--lit); }
+  .goal-edit { margin-top: 10px; }
+  .goal-edit .pills { margin-top: 6px; gap: 6px; }
+  .goal-edit .pill { min-height: 36px; padding: 0 10px; font-size: 13px; }
   .cheers { display: flex; gap: 8px; flex-wrap: wrap; }
   .cheers button { flex: 1; min-height: 44px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface2); color: var(--ink); font-size: 14px; font-weight: 700; padding: 0 8px; white-space: nowrap; }
   .cheers button[aria-pressed="true"] { border-color: var(--lit); background: rgba(255,199,90,.12); color: var(--lit); }
@@ -931,7 +934,8 @@
         if (on(v2) || (k2 === 6 && m.me && isInt(myLocalMin) && !on(v2))) weekLit++;
       }
     });
-    return { lit: lit, total: ms.length, allLitToday: ms.length >= 2 && lit === ms.length, weekAllDays: allDays, weekLit: weekLit, weekGoal: ms.length * ROOM_WEEK_EACH };
+    var each = isInt(view && view.week_goal) && view.week_goal >= 1 && view.week_goal <= 7 ? view.week_goal : ROOM_WEEK_EACH;
+    return { lit: lit, total: ms.length, allLitToday: ms.length >= 2 && lit === ms.length, weekAllDays: allDays, weekLit: weekLit, weekGoal: ms.length * each, each: each };
   }
 
   // ---------- 내 기록: 연속 일수, 최근 n일, CSV 내보내기 ----------
@@ -1931,22 +1935,42 @@
     }
     if (!ENV.standalone && !ENV.inApp && !ENV.framed && !Local.get(K.installHide) && (ENV.ios || installEvt) && /^https?:$/.test(location.protocol)) {
       html += '<section class="card" aria-label="홈 화면에 추가"><div class="label">매일 아침 한 번에 열리게</div><div class="action-text" style="margin-top:4px">홈 화면에 추가해 두세요</div>' +
-        (installEvt ? '' : '<ol class="steps-ol"><li>아래(또는 위) 막대의 <b>공유 버튼</b> <span aria-hidden="true">⎙</span>을 눌러요</li><li><b>홈 화면에 추가</b>를 눌러요</li><li>홈 화면의 \'같이 일어나요\' 아이콘으로 열어요</li></ol>') +
-        '<div class="row-actions">' + (installEvt ? '<button type="button" class="primary" data-install>앱으로 설치</button>' : '') +
+        '<div class="row-actions"><button type="button" class="primary" data-install>홈 화면에 추가</button>' +
         '<button type="button" class="ghost" data-install-hide>이미 했어요</button></div></section>';
     }
     return html;
   }
+  // 홈 화면에 추가: 안드로이드 Chrome은 설치 창, 그 밖엔 기기별 안내
+  function openInstall() {
+    if (installEvt) {
+      installEvt.prompt();
+      return (installEvt.userChoice || Promise.resolve({})).then(function (c) { if (c && c.outcome === 'accepted') { Local.set(K.installHide, true); toast('홈 화면에 추가했어요.'); } installEvt = null; render(); });
+    }
+    var android = /Android/i.test(UA), samsung = /SamsungBrowser/i.test(UA), iosOther = ENV.ios && /CriOS|FxiOS|EdgiOS|Whale|NAVER/i.test(UA);
+    var steps;
+    if (ENV.standalone) steps = '<p class="lead">이미 홈 화면 앱으로 쓰고 있어요. 👍</p>';
+    else if (ENV.inApp) steps = '<p class="lead">' + (ENV.kakao ? '카카오톡' : '앱') + ' 안 브라우저에서는 추가할 수 없어요. Safari나 Chrome에서 연 뒤 다시 눌러 주세요.</p>' +
+      (ENV.kakao ? '<button type="button" class="primary" data-open-external style="width:100%">Safari·Chrome으로 열기</button>' : '');
+    else if (ENV.ios) steps = '<ol class="steps-ol"><li>' + (iosOther ? '주소창 옆 또는 메뉴의 <b>공유 버튼</b>' : '화면 아래(또는 위) 막대의 <b>공유 버튼</b> <span aria-hidden="true">⎙</span>') + '을 눌러요</li>' +
+      '<li>목록을 조금 내려 <b>홈 화면에 추가</b>를 눌러요</li><li>오른쪽 위 <b>추가</b>를 누르면 끝이에요</li></ol>' +
+      (iosOther ? '<p class="hint-small">메뉴에 없으면 Safari에서 열어 주세요. 알림은 홈 화면 앱에서만 켤 수 있어요.</p>' : '<p class="hint-small">홈 화면 앱에서는 아침 알림도 켤 수 있어요.</p>');
+    else if (samsung) steps = '<ol class="steps-ol"><li>아래 <b>≡ 메뉴</b>를 눌러요</li><li><b>현재 페이지 추가 → 홈 화면</b>을 눌러요</li></ol>';
+    else if (android) steps = '<ol class="steps-ol"><li>오른쪽 위 <b>⋮ 메뉴</b>를 눌러요</li><li><b>홈 화면에 추가</b> 또는 <b>앱 설치</b>를 눌러요</li></ol>';
+    else steps = '<ol class="steps-ol"><li>주소창 오른쪽의 <b>설치 아이콘</b> 또는 브라우저 메뉴를 눌러요</li><li><b>앱 설치</b>(또는 바로가기 만들기)를 눌러요</li></ol><p class="hint-small">휴대폰에서 열면 홈 화면에 아이콘으로 둘 수 있어요.</p>';
+    var el = document.getElementById('sheetBody');
+    el.innerHTML = '<h2 id="sheetTitle">홈 화면에 추가</h2><p class="lead">아이콘을 누르면 앱처럼 바로 열려요. 매일 아침 한 번에 불을 켜기 좋아요.</p>' + steps +
+      (ENV.standalone ? '' : '<button type="button" class="secondary" id="installDone" style="width:100%;min-height:48px;margin-top:12px">추가했어요</button>') +
+      '<button type="button" class="close-btn" id="closeSheet">닫기</button>';
+    document.getElementById('sheet').hidden = false;
+    el.querySelector('#closeSheet').addEventListener('click', closeSheet);
+    var dn = el.querySelector('#installDone'); if (dn) dn.addEventListener('click', function () { Local.set(K.installHide, true); closeSheet(); render(); });
+    var ex = el.querySelector('[data-open-external]'); if (ex) ex.addEventListener('click', function () { location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(location.href); });
+    el.querySelector('h2').setAttribute('tabindex', '-1'); el.querySelector('h2').focus();
+  }
   function bindExtraCards(root) {
     root.querySelectorAll('[data-reminder]').forEach(function (b) { b.addEventListener('click', openReminder); });
     root.querySelectorAll('[data-install-hide]').forEach(function (b) { b.addEventListener('click', function () { Local.set(K.installHide, true); render(); }); });
-    root.querySelectorAll('[data-install]').forEach(function (b) {
-      b.addEventListener('click', function () {
-        if (!installEvt) return;
-        installEvt.prompt();
-        (installEvt.userChoice || Promise.resolve({})).then(function (c) { if (c && c.outcome === 'accepted') Local.set(K.installHide, true); installEvt = null; render(); });
-      });
-    });
+    root.querySelectorAll('[data-install]').forEach(function (b) { b.addEventListener('click', openInstall); });
     root.querySelectorAll('[data-open-external]').forEach(function (b) {
       b.addEventListener('click', function () { location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(location.href); });
     });
@@ -2594,6 +2618,7 @@
       '<div class="err" id="setErr" role="alert"></div>' +
       '<button type="button" class="primary" id="saveSettings" style="width:100%">저장</button>' +
       '<p class="hint-small" style="text-align:center;margin:8px 0 0">위 목표는 저장을 눌러야 바뀌고, 아래 설정은 바꾸면 바로 적용돼요.</p>' +
+      (ENV.framed ? '' : '<div class="section-label">홈 화면</div><button type="button" class="secondary" id="openInstall" style="width:100%;min-height:48px">' + (ENV.standalone ? '홈 화면 앱으로 쓰는 중 ✓' : '홈 화면에 추가하기') + '</button>') +
       '<div class="section-label">불 켤 때</div><label class="check"><input type="checkbox" id="soundToggle"' + (soundOn() ? ' checked' : '') + '> 효과음 (작은 종소리)</label>' +
       '<div class="section-label">알림</div>' + pushSectionHtml() +
       '<button type="button" class="secondary" id="setReminder" style="width:100%;min-height:48px;margin-top:6px">캘린더에 아침 알림 추가</button>' +
@@ -2629,6 +2654,7 @@
       saveSettings(made.settings); closeSheet(); render(); toast('저장했어요.');
     });
     el.querySelector('#setReminder').addEventListener('click', openReminder);
+    if (el.querySelector('#openInstall')) el.querySelector('#openInstall').addEventListener('click', openInstall);
     bindPushSection(el); bindWeatherSection(el);
     el.querySelector('#soundToggle').addEventListener('change', function (e) { Local.set(K.sound, !!e.target.checked); if (e.target.checked) { primeAudio(); chime(1, false); } });
     if (el.querySelector('#sendFeedback')) el.querySelector('#sendFeedback').addEventListener('click', openFeedback);
@@ -2922,9 +2948,13 @@
     if (goal && rs.total >= 2) {
       var pct = Math.min(100, Math.round(tg.weekLit / tg.weekGoal * 100)), done = tg.weekLit >= tg.weekGoal;
       goal.hidden = false;
-      goal.innerHTML = '<div class="row-between"><div class="label">이번 주 함께 켜기 · 각자 4번씩</div><div class="num" style="font-weight:700">' + tg.weekLit + ' / ' + tg.weekGoal + '</div></div>' +
+      var own = !!d.view.owner_me;
+      goal.innerHTML = '<div class="row-between"><div class="label">이번 주 함께 켜기 · 각자 ' + tg.each + '번씩</div><div class="num" style="font-weight:700">' + tg.weekLit + ' / ' + tg.weekGoal + '</div></div>' +
         '<div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="' + tg.weekGoal + '" aria-valuenow="' + tg.weekLit + '" aria-label="이번 주 함께 켠 창문"><i style="width:' + pct + '%' + (done ? ';background:var(--good)' : '') + '"></i></div>' +
-        '<p class="status-sub">' + (done ? '이번 주 목표 달성! 다 같이 해냈어요 🎉' : '한 명이 빠져도 괜찮아요. 모두가 켠 창문이 쌓여요 · 월요일에 새로 시작') + '</p>';
+        '<p class="status-sub">' + (done ? '이번 주 목표 달성! 다 같이 해냈어요 🎉' : '한 명이 빠져도 괜찮아요. 모두가 켠 창문이 쌓여요 · 월요일에 새로 시작') + '</p>' +
+        (own ? '<div class="goal-edit"><span class="label">방장 · 각자 몇 번?</span><div class="pills" role="group" aria-label="주간 목표: 각자 몇 번">' +
+          [1, 2, 3, 4, 5, 6, 7].map(function (n) { return '<button type="button" class="pill" data-week-goal="' + n + '" aria-pressed="' + (n === tg.each) + '">' + n + '번</button>'; }).join('') + '</div></div>'
+          : '<p class="hint-small">목표 횟수는 방장이 정해요.</p>');
     }
     rs0.classList.toggle('all-lit', tg.allLitToday);
     document.getElementById('roomDot').className = d.error ? 'dot demo' : 'dot';
@@ -3072,6 +3102,17 @@
     }).catch(function () {});
   }
   view.addEventListener('click', function (e) {
+    var wg = e.target.closest('[data-week-goal]');
+    if (wg) {
+      var room0 = currentRoom(); if (!room0) return;
+      var n = +wg.dataset.weekGoal;
+      Server.rpc('set_room_goal', { p_anon: anonId, p_code: room0.code, p_n: n }).then(function (res) {
+        if (!res || res.error) { toast(roomErr(res && res.error)); return; }
+        var rd = state.roomData[room0.code]; if (rd && rd.view) rd.view.week_goal = n;
+        updateRoomScene(); toast('이번 주부터 각자 ' + n + '번씩이에요.');
+      }).catch(function () { toast(roomErr()); });
+      return;
+    }
     var v = e.target.closest('[data-view]');
     if (v) { setView(v.dataset.view); render(); return; }
     if (e.target.closest('[data-create-room]')) return openCreateRoom();

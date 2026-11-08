@@ -119,6 +119,16 @@ test('아이폰 Safari: 홈 화면 추가 안내 → "이미 했어요"면 다�
   await onboard(ios);
   await ios.getByText('홈 화면에 추가해 두세요').waitFor();
   await ios.screenshot({ path: path.join(SHOTS, 'care-install.png'), fullPage: true });
+  await ios.locator('[data-install]').click();
+  await ios.getByRole('heading', { name: '홈 화면에 추가' }).waitFor();
+  await ios.getByText('홈 화면에 추가를 눌러요', { exact: false }).waitFor();
+  await ios.getByRole('button', { name: '닫기' }).click();
+  // 설정에서도 언제든
+  await ios.getByRole('button', { name: '목표 설정 열기' }).click();
+  await ios.getByRole('button', { name: '홈 화면에 추가하기' }).click();
+  await ios.getByRole('heading', { name: '홈 화면에 추가' }).waitFor();
+  await ios.screenshot({ path: path.join(SHOTS, 'v10-install.png') });
+  await ios.getByRole('button', { name: '닫기' }).click();
   await ios.getByRole('button', { name: '이미 했어요' }).click();
   assert.equal(await ios.getByText('홈 화면에 추가해 두세요').count(), 0);
   await ios.reload();

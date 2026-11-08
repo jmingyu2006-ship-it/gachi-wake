@@ -524,7 +524,8 @@
         if (on(v2) || (k2 === 6 && m.me && isInt(myLocalMin) && !on(v2))) weekLit++;
       }
     });
-    return { lit: lit, total: ms.length, allLitToday: ms.length >= 2 && lit === ms.length, weekAllDays: allDays, weekLit: weekLit, weekGoal: ms.length * ROOM_WEEK_EACH };
+    var each = isInt(view && view.week_goal) && view.week_goal >= 1 && view.week_goal <= 7 ? view.week_goal : ROOM_WEEK_EACH;
+    return { lit: lit, total: ms.length, allLitToday: ms.length >= 2 && lit === ms.length, weekAllDays: allDays, weekLit: weekLit, weekGoal: ms.length * each, each: each };
   }
 
   // ---------- 내 기록: 연속 일수, 최근 n일, CSV 내보내기 ----------

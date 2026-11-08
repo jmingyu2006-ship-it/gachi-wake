@@ -90,6 +90,10 @@ function mockServer() {
       st.bans.add(c + t.anon); return json({ ok: true });
     }
     if (fn === 'app_info') return st.noFeatures ? json({ message: 'unknown' }, 404) : json({ v: 9, features: ['report', 'recovery', 'erase', 'rests', 'cheer', 'funnel', 'days'] });
+    if (fn === 'set_room_goal') {
+      if (ownerOf(body.p_code) !== body.p_anon) return json({ error: 'not_owner' });
+      st.goals = st.goals || new Map(); st.goals.set(body.p_code, body.p_n); return json({ ok: true, week_goal: body.p_n });
+    }
     if (fn === 'bump_funnel') { st.funnel = st.funnel || []; st.funnel.push(body.p_step); return json(true); }
     if (fn === 'send_cheer') {
       const c = body.p_code;
@@ -191,7 +195,7 @@ function mockServer() {
           return { key: mkey(m.anon, c), owner: m.anon === ownerOf(c), nickname: m.nick, me: m.anon === body.p_anon, start_min: has(day) ? st.starts.get(m.anon + day) : null,
             target_min: st.targets.has(m.anon) ? st.targets.get(m.anon) : null, joined: day, week, days30, streak };
         });
-      return json({ code: c, name: st.rooms.get(c), owner_me: ownerOf(c) === body.p_anon, members });
+      return json({ code: c, name: st.rooms.get(c), owner_me: ownerOf(c) === body.p_anon, week_goal: (st.goals && st.goals.get(c)) || 4, members });
     }
     return json({ message: 'unknown' }, 404);
   };
@@ -889,6 +893,35 @@ test('초대받은 사람: 첫 화면에서 방 미리보기(오늘 켜진 수) 
   await me.getByText('받은 응원 ☀️민수', { exact: false }).waitFor();
   assert.ok(srv.st.funnel.includes('room'), '단계 집계: 방');
   assert.ok(srv.st.funnel.includes('invite_visit') && srv.st.funnel.includes('cheer'));
+  assert.deepEqual(me.errors, []); assert.deepEqual(fr.errors, []);
+  await me.context().close(); await fr.context().close();
+});
+
+test('방 주간 목표: 방장이 각자 몇 번인지 바꾸면 친구 화면에도 반영, 방장 아니면 못 바꿈', async () => {
+  const srv = mockServer();
+  const me = await person('2026-11-09T06:30:00', srv);
+  await onboard(me);
+  await me.getByRole('button', { name: '+ 방 만들기' }).click();
+  await me.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민규');
+  await me.getByRole('button', { name: '방 만들기', exact: true }).click();
+  await me.getByText("'우리 방' 방을 만들었어요").waitFor();
+  await me.getByRole('button', { name: '닫기' }).click();
+  const code = [...srv.st.rooms.keys()][0];
+  const fr = await person('2026-11-09T06:40:00', srv, BASE + '?room=' + code);
+  await onboard(fr);
+  await fr.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민수');
+  await fr.getByRole('button', { name: '들어가기', exact: true }).click();
+  await fr.locator('#roomGoal').getByText('각자 4번씩', { exact: false }).waitFor();
+  await fr.getByText('목표 횟수는 방장이 정해요.').waitFor();
+  assert.equal(await fr.locator('[data-week-goal]').count(), 0);
+  await me.clock.runFor(21000);
+  await me.locator('#roomGoal').getByText('0 / 8').waitFor();
+  await me.getByRole('button', { name: '3번' }).click();
+  await me.getByText('이번 주부터 각자 3번씩이에요.').waitFor();
+  await me.locator('#roomGoal').getByText('0 / 6').waitFor();
+  await me.screenshot({ path: path.join(SHOTS, 'v10-room-goal.png'), fullPage: true });
+  await fr.clock.runFor(21000);
+  await fr.locator('#roomGoal').getByText('각자 3번씩', { exact: false }).waitFor();
   assert.deepEqual(me.errors, []); assert.deepEqual(fr.errors, []);
   await me.context().close(); await fr.context().close();
 });
