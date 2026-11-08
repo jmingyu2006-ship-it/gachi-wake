@@ -52,7 +52,20 @@ from (select r.code, count(m.anon_id) as n from public.rooms r left join public.
 ```
 방에 든 사람의 리텐션이 혼자 쓰는 사람보다 높으면, 친구 초대를 더 앞에 보여주는 게 맞아요.
 
-> 지금 숫자로는 '앱을 열었지만 한 번도 누르지 않은 사람'은 알 수 없어요(그런 기록을 모으지 않아요). 첫 방문→첫 기록 전환율이 궁금해지면, 이름 없는 하루 방문 수만 세는 기능을 따로 추가하는 게 좋아요.
+### 첫 방문 → 설정 → 첫 기록 → 다음 날 (익명 단계 집계)
+기기 번호 없이 날짜·단계별 숫자만 세요. 한 기기는 각 단계를 한 번만 세요.
+```sql
+select step, sum(n) as 기기수 from public.funnel_daily
+where day >= (now() at time zone 'Asia/Seoul')::date - 14
+group by step order by array_position(array['visit','invite_visit','demo','setup','first','day2','week1','room','push_on','weather_on','cheer'], step);
+```
+- `visit`→`setup`이 낮으면 첫 화면·설정 단계가 어려운 거예요. `setup`→`first`가 낮으면 첫 아침까지 이어지지 않는 거라 알림 예약을 더 앞에 보여 주세요.
+- `first`→`day2`가 리텐션의 핵심이에요. `invite_visit`(초대 링크로 온 첫 방문)과 `room`도 같이 보면 친구 초대의 효과를 알 수 있어요.
+
+### 응원
+```sql
+select day, count(*) as 응원, count(distinct from_anon) as 보낸사람 from public.room_cheers group by day order by day desc limit 14;
+```
 
 ---
 

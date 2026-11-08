@@ -22,16 +22,24 @@ test('첫 행동 입력: 20자까지 자르고 태그·제어문자는 지운다
   assert.equal(L.sanitizeAction(null), '');
 });
 
-test('단계 목표: 평소 08:00 → 목표 07:00이면 3일마다 15분씩 당겨 07:00에서 멈춘다', () => {
+test('단계 목표: 평소 08:00 → 목표 07:00이면 첫 단계 07:45, 기록을 보고 앞당기기 전까지 그대로', () => {
   const s = S().settings;
+  assert.equal(s.cur, 465);
   assert.equal(L.planTargetFor(s, '2026-11-09'), 465); // 07:45
-  assert.equal(L.planTargetFor(s, '2026-11-11'), 465);
-  assert.equal(L.planTargetFor(s, '2026-11-12'), 450); // 07:30
-  assert.equal(L.planTargetFor(s, '2026-11-18'), 420); // 07:00
-  assert.equal(L.planTargetFor(s, '2026-12-30'), 420);
+  assert.equal(L.planTargetFor(s, '2026-12-30'), 465, '날짜가 지나도 저절로 당겨지지 않음');
   const info = L.planInfo(s, '2026-11-09');
-  assert.equal(info.stepping, true);
-  assert.equal(info.daysLeft, 9);
+  assert.equal(info.stepping, true); assert.equal(info.stepsLeft, 3);
+  assert.equal(L.planTargetFor(L.withStep(s, 450), '2026-11-12'), 450);
+  assert.equal(L.planTargetFor(L.withStep(s, 300), '2026-11-12'), 420, '최종 목표보다 앞당기지 않음');
+  assert.equal(L.planTargetFor(L.withStep(s, 600), '2026-11-12'), 480, '평소보다 늦추지 않음');
+  // 예전 설정(cur 없음)은 날짜 기준 그대로 → 불러올 때 오늘 값으로 고정
+  const legacy = { ...s }; delete legacy.cur;
+  assert.equal(L.planTargetFor(legacy, '2026-11-12'), 450);
+  assert.equal(L.planTargetFor(legacy, '2026-11-18'), 420);
+  assert.equal(L.migrateSettings(legacy, '2026-11-12').cur, 450);
+  assert.equal(L.migrateSettings(s, '2026-11-12'), s, '이미 cur가 있으면 그대로');
+  assert.deepEqual(L.validateSettings(L.withStep(s, 450)), []);
+  assert.ok(L.validateSettings({ ...s, cur: 455 + 1 }).length, '5분 단위');
 });
 
 test('단계 목표: 차이가 30분 이하이거나 목표가 더 늦으면 바로 최종 목표', () => {
@@ -49,10 +57,13 @@ test('정상 입력: 하루 시작을 누르면 그날의 목표가 함께 저�
   assert.deepEqual(L.validateRecord(r.record), []);
 });
 
-test('판정 경계: +15분 달성, +16~60분 아쉬움, +61분 늦음', () => {
+test('판정 경계: -30분~+15분 달성, 그보다 일찍은 많이 일찍, +16~60분 아쉬움, +61분 늦음', () => {
   const s = S({ baselineMin: 420 }).settings; // 목표 07:00 바로
   const ev = (h, m) => L.evaluate(L.createStartRecord([], at(2026, 11, 9, h, m), s).record).status;
-  assert.equal(ev(6, 10), 'hit');
+  assert.equal(ev(4, 0), 'early', '목표 07:00인데 04:00은 달성이 아님 (일찍보다 일정하게)');
+  assert.equal(ev(6, 29), 'early');
+  assert.equal(ev(6, 30), 'hit');
+  assert.equal(ev(6, 10), 'early');
   assert.equal(ev(7, 15), 'hit');
   assert.equal(ev(7, 16), 'close');
   assert.equal(ev(8, 0), 'close');
@@ -302,6 +313,8 @@ test('방: 방장 표시와 멤버 키(12자리 16진수만)', () => {
 
 test('아침 알림: 단계 목표별 일정, 75바이트 줄 접기, 구글 링크', () => {
   const s = L.makeSettings({ baselineMin: 480, targetMin: 420, sleepNeedH: 8, firstAction: '물 한 잔 마시기' }, '2026-11-08').settings;
+  assert.deepEqual(L.reminderStages(s, '2026-11-09').map(g => [g.start, g.min, !!g.forever]), [['2026-11-09', 465, true]], '지금 단계 목표로 매일');
+  delete s.cur;   // 예전 방식(날짜로 당기기) 설정이면 단계별 일정
   assert.deepEqual(L.reminderStages(s, '2026-11-09').map(g => [g.start, g.min, g.days, !!g.forever]),
     [['2026-11-09', 465, 2, false], ['2026-11-11', 450, 3, false], ['2026-11-14', 435, 3, false], ['2026-11-17', 420, 1, true]]);
   const flat = L.makeSettings({ baselineMin: 440, targetMin: 420, sleepNeedH: 8, firstAction: '물' }, '2026-11-08').settings;
@@ -332,7 +345,7 @@ test('내 기록: 연속 일수, 최근 n일, CSV (따옴표·쉼표 처리, BOM
   assert.equal(csv.charCodeAt(0), 0xFEFF);
   const rows = csv.slice(1).trim().split('\r\n');
   assert.equal(rows.length, 5);
-  assert.equal(rows[3], '2026-11-07,토,09:05,07:15,110,늦음,');
+  assert.equal(rows[3], '2026-11-07,토,09:05,07:45,80,늦음,');
   assert.equal(L.recordsCsv([]).slice(1), '날짜,요일,하루 시작,그날 목표,목표와 차이(분),결과,첫 행동\r\n');
 });
 
@@ -442,4 +455,69 @@ test('실제 날씨: 비·눈·뇌우·안개·흐림은 그 하늘, 맑으면 �
   const cells = L.monthCells(2026, 11);
   assert.equal(cells[0], '2026-11-01'); assert.equal(cells.length, 30);
   assert.equal(L.monthCells(2026, 12)[2], '2026-12-01', '12월 1일은 화요일');
+});
+
+test('목표 제안: 3번 연속 달성이면 앞당기기, 늦은 날이 많으면 유지, 기록이 드물면 횟수부터, 오래 쉬다 오면 복귀 안내', () => {
+  const s = L.makeSettings({ baselineMin: 480, targetMin: 420, sleepNeedH: 8, firstAction: '물' }, '2026-11-01').settings;   // cur 07:45
+  const mk = (pairs) => { let r = []; for (const [d, t] of pairs) r = L.createStartRecord(r, new Date(d + 'T' + t + ':00+09:00'), s).records; return r; };
+  const adv = L.stepAdvice(mk([['2026-11-07', '07:40'], ['2026-11-08', '07:50'], ['2026-11-09', '07:45']]), s, '2026-11-09');
+  assert.deepEqual(adv, { kind: 'advance', cur: 465, to: 450 });
+  const hold = L.stepAdvice(mk([['2026-11-07', '08:30'], ['2026-11-08', '07:40'], ['2026-11-09', '08:40']]), s, '2026-11-09');
+  assert.equal(hold.kind, 'hold'); assert.equal(hold.easeTo, 480);
+  assert.equal(L.stepAdvice(mk([['2026-11-07', '07:40'], ['2026-11-08', '08:05'], ['2026-11-09', '07:45']]), s, '2026-11-09'), null, '섞여 있으면 제안 없음');
+  assert.equal(L.stepAdvice(mk([['2026-10-20', '07:40'], ['2026-10-25', '07:40'], ['2026-11-01', '07:45'], ['2026-11-04', '07:45']]), s, '2026-11-09'), null, '오늘 기록 전엔 없음');
+  assert.equal(L.stepAdvice(mk([['2026-10-25', '07:40'], ['2026-10-28', '07:40'], ['2026-11-02', '07:45'], ['2026-11-09', '07:45']]), s, '2026-11-09').kind, 'return');
+  const r = L.stepAdvice(mk([['2026-10-25', '07:40'], ['2026-11-09', '07:45']]), s, '2026-11-09');
+  assert.equal(r.kind, 'return'); assert.equal(r.gap, 14); assert.equal(r.total, 2);
+  assert.equal(L.stepAdvice(mk([['2026-10-24', '07:40'], ['2026-10-28', '07:40'], ['2026-11-01', '07:40'], ['2026-11-05', '07:45'], ['2026-11-09', '07:45']]), s, '2026-11-09').kind, 'count', '4일 간격으로 드문드문');
+  // 최종 목표에 도착했으면 앞당기기 제안 없음
+  const fin = L.withStep(s, 420);
+  const mk2 = (pairs) => { let x = []; for (const [d, t] of pairs) x = L.createStartRecord(x, new Date(d + 'T' + t + ':00+09:00'), fin).records; return x; };
+  assert.equal(L.stepAdvice(mk2([['2026-11-07', '07:00'], ['2026-11-08', '07:00'], ['2026-11-09', '07:00']]), fin, '2026-11-09'), null);
+});
+
+test('참여 요일: 쉬는 요일은 연속을 끊지 않고 보호권도 안 씀, 정한 날 이전 기록엔 소급 안 함, 캘린더 반복 요일', () => {
+  const s = L.makeSettings({ baselineMin: 440, targetMin: 420, sleepNeedH: 8, firstAction: '물', days: [1, 2, 3, 4, 5] }, '2026-11-02').settings;   // 월~금
+  assert.equal(s.daysFrom, '2026-11-02');
+  assert.equal(L.isOffDay(s, '2026-11-07'), true, '토');
+  assert.equal(L.isOffDay(s, '2026-11-06'), false, '금');
+  assert.equal(L.isOffDay(s, '2026-11-01'), false, '정하기 전 날은 적용 안 함');
+  let recs = [];
+  for (const d of ['2026-11-02', '2026-11-03', '2026-11-04', '2026-11-05', '2026-11-06', '2026-11-09']) recs = L.createStartRecord(recs, new Date(d + 'T07:00:00+09:00'), s).records;
+  const tl = L.journeyTimeline(recs, '2026-11-09', s);
+  assert.equal(tl.streak, 6, '주말을 건너뛰고 이어짐');
+  assert.deepEqual(tl.offDays, ['2026-11-07', '2026-11-08']);
+  assert.deepEqual(tl.restDays, []);
+  assert.equal(L.journeyTimeline(recs, '2026-11-09').streak, 1, '참여 요일 없으면 끊김');
+  assert.match(L.reminderIcs(s, '2026-11-09', '', '2026-11-08T00:00:00Z'), /RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR\r\n/);
+  assert.match(L.googleReminderUrl(s, '2026-11-09', ''), /recur=RRULE%3AFREQ%3DWEEKLY%3BBYDAY%3DMO%2CTU%2CWE%2CTH%2CFR/);
+  assert.ok(L.validateSettings({ ...s, days: [] }).length);
+  assert.ok(L.validateSettings({ ...s, days: [7] }).length);
+  // 주간 리포트: 계획한 날 5
+  assert.equal(L.weekRecap(recs, '2026-11-10', null, s).planned, 5);
+});
+
+test('방 주간 목표(각자 4번), 리포트 흔들림은 표준편차, 그래프 목표선은 그날 목표', () => {
+  const view = { members: [
+    { me: true, start_min: null, joined: '2026-11-01', week: [420, 425, 430, null, 420, 430, null] },
+    { me: false, start_min: 450, joined: '2026-11-01', week: [440, 445, 450, 455, -1, 430, 450] }
+  ] };
+  // 2026-11-09(월): 이번 주는 오늘 하루 → 나(로컬 431) + 친구(450) = 2
+  const t = L.roomTogether(view, '2026-11-09', 431);
+  assert.equal(t.weekLit, 2); assert.equal(t.weekGoal, 8);
+  // 2026-11-12(목) 기준이면 월~목 4일분
+  const t2 = L.roomTogether(view, '2026-11-12', null);
+  assert.equal(t2.weekLit, 5, '월~목: 나 2번(420,430) + 친구 3번(455,430,450, 쉬는 날 -1은 안 셈)');
+  // 리포트 흔들림 = 표준편차 (습관 탭과 같음)
+  const s = L.makeSettings({ baselineMin: 440, targetMin: 420, sleepNeedH: 8, firstAction: '물' }, '2026-10-01').settings;
+  let recs = [];
+  for (const [d, t] of [['2026-11-02', '07:00'], ['2026-11-03', '07:20'], ['2026-11-04', '07:40']]) recs = L.createStartRecord(recs, new Date(d + 'T' + t + ':00+09:00'), s).records;
+  assert.equal(L.weekRecap(recs, '2026-11-10', null, s).wobble, 16, 'sd(420,440,460)=16.3');
+  assert.equal(L.habitStats(recs, '2026-11-05', s).wobble, 16);
+  // 그래프 목표선: 그날 저장된 목표 (설정을 나중에 바꿔도 지난 선은 그대로), 기록 없는 지난 날은 비움
+  const later = L.withStep({ ...s, targetMin: 360, baselineMin: 440 }, 380);
+  const st = L.habitStats(recs, '2026-11-05', later);
+  assert.equal(st.last14.find(d => d.key === '2026-11-03').target, 420);
+  assert.equal(st.last14.find(d => d.key === '2026-11-01').target, null);
+  assert.equal(st.last14.find(d => d.key === '2026-11-05').target, 380, '오늘은 지금 목표');
 });

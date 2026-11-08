@@ -11,6 +11,7 @@
   var STEP_MIN = 15;       // 단계 목표: 15분씩
   var STEP_DAYS = 3;       // 3일마다
   var HIT_TOL = 15;        // 목표 +15분까지 달성
+  var EARLY_TOL = 30;      // 목표보다 30분 넘게 일찍은 '많이 일찍' (일찍보다 일정하게)
   var CLOSE_TOL = 60;      // +60분까지 아쉬움
   var JOURNEY_DAYS = 66;   // Lally 외(2010) 중앙값
   var WINDOWS = 96;        // 기본 건물: 12칸 x 8층
@@ -65,6 +66,8 @@
     if (typeof s.planStart !== 'string' || !DATE_RE.test(s.planStart)) e.push('planStart 형식 오류');
     if ([7, 8, 9].indexOf(s.sleepNeedH) < 0) e.push('필요 수면은 7·8·9시간');
     if (typeof s.firstAction !== 'string' || !s.firstAction || s.firstAction !== sanitizeAction(s.firstAction)) e.push('첫 행동 형식 오류');
+    if (s.cur !== undefined && (!isInt(s.cur) || s.cur % 5 || s.cur < s.targetMin || s.cur > Math.max(s.targetMin, s.baselineMin))) e.push('단계 목표 형식 오류');
+    if (s.days !== undefined && (!Array.isArray(s.days) || !s.days.length || s.days.some(function (d) { return !isInt(d) || d < 0 || d > 6; }))) e.push('참여 요일 형식 오류');
     return e;
   }
 
@@ -77,6 +80,9 @@
       sleepNeedH: input.sleepNeedH,
       firstAction: sanitizeAction(input.firstAction)
     };
+    // 평소보다 30분 넘게 당기면 첫 단계는 평소-15분. 이후엔 목표 근처에서 3번 시작하면 15분씩 앞당기자고 제안
+    s.cur = input.baselineMin - input.targetMin > 30 ? input.baselineMin - STEP_MIN : input.targetMin;
+    if (Array.isArray(input.days)) { s.days = input.days; s.daysFrom = todayKey; }
     var errors = validateSettings(s);
     return errors.length ? { ok: false, errors: errors } : { ok: true, settings: s };
   }
@@ -84,6 +90,7 @@
   // 단계 목표: 평소보다 30분 넘게 당기면 3일마다 15분씩 당긴다
   function planTargetFor(s, key) {
     if (!s) return null;
+    if (isInt(s.cur)) return Math.max(s.targetMin, s.cur);
     var gap = s.baselineMin - s.targetMin;
     if (gap <= 30) return s.targetMin;
     var d = Math.max(0, daysBetween(s.planStart, key));
@@ -91,8 +98,16 @@
     return Math.max(s.targetMin, step);
   }
 
+  // 예전 설정(날짜로 당기던 방식) → 지금 단계 목표를 cur로 고정해 기록 기반으로
+  function migrateSettings(s, todayKey) {
+    if (!s || isInt(s.cur)) return s;
+    var n = {}; Object.keys(s).forEach(function (k) { n[k] = s[k]; });
+    n.cur = planTargetFor(s, todayKey);
+    return n;
+  }
   function planInfo(s, key) {
     var today = planTargetFor(s, key);
+    if (isInt(s.cur)) return { today: today, final: s.targetMin, stepping: today > s.targetMin, stepsLeft: Math.ceil((today - s.targetMin) / STEP_MIN), daysLeft: 0 };
     var gap = s.baselineMin - s.targetMin;
     if (gap <= 30) return { today: today, final: s.targetMin, stepping: false, daysLeft: 0 };
     var stepsTotal = Math.ceil(gap / STEP_MIN);
@@ -187,7 +202,7 @@
   function evaluate(rec) {
     if (!rec || !isInt(rec.dayTarget)) return { status: 'none', diff: null };
     var diff = rec.minuteOfDay - rec.dayTarget;
-    var status = diff <= HIT_TOL ? 'hit' : (diff <= CLOSE_TOL ? 'close' : 'late');
+    var status = diff < -EARLY_TOL ? 'early' : (diff <= HIT_TOL ? 'hit' : (diff <= CLOSE_TOL ? 'close' : 'late'));
     return { status: status, diff: diff };
   }
 
@@ -210,7 +225,8 @@
     var last14 = [];
     for (var j = 13; j >= 0; j--) {
       var k = addDays(todayKey, -j), r = findDay(records, k);
-      last14.push({ key: k, min: r ? r.minuteOfDay : null, target: settings ? planTargetFor(settings, k) : null, weekend: isWeekend(k) });
+      var tg = r && isInt(r.dayTarget) ? r.dayTarget : (k === todayKey && settings ? planTargetFor(settings, k) : null);
+      last14.push({ key: k, min: r ? r.minuteOfDay : null, target: tg, weekend: isWeekend(k) });
     }
     var hit7 = 0, rec7 = 0;
     for (var h = 0; h < 7; h++) {
@@ -415,9 +431,14 @@
 
   // 첫 기록부터 오늘까지 하루씩: 기록한 날(하늘·연속·칭호·보호권 얻음), 보호권으로 지킨 날, 끊긴 날
   // 보호권: 기록 7일마다 1개(최대 2개). 지난 날을 빠뜨리면 연속 중일 때 자동으로 1개 써서 연속을 이어 줌.
-  function journeyTimeline(records, todayKey) {
+  function isOffDay(s, key) {
+    if (!s || !Array.isArray(s.days) || s.days.length >= 7) return false;
+    if (typeof s.daysFrom === 'string' && key < s.daysFrom) return false;
+    return s.days.indexOf(dayOfWeek(key)) < 0;
+  }
+  function journeyTimeline(records, todayKey, settings) {
     var recs = cleanRecords(records).filter(function (r) { return r.date <= todayKey; });
-    var out = { days: [], streak: 0, best: 0, shields: 0, restDays: [], journeyDays: 0, skyCounts: {}, nextShieldIn: SHIELD_EVERY, titles: [] };
+    var out = { days: [], streak: 0, best: 0, shields: 0, restDays: [], offDays: [], journeyDays: 0, skyCounts: {}, nextShieldIn: SHIELD_EVERY, titles: [] };
     if (!recs.length) return out;
     var byDate = {}; recs.forEach(function (r) { byDate[r.date] = r; });
     var seed = String(recs[0].wokeAt || recs[0].date), d = recs[0].date, streak = 0, shields = 0, n = 0;
@@ -435,7 +456,8 @@
         if (ms) out.titles.push(ms);
         if (streak > out.best) out.best = streak;
       } else if (d < todayKey) {
-        if (streak > 0 && shields > 0) { shields--; out.restDays.push(d); out.days.push({ date: d, rest: true, streak: streak }); }
+        if (isOffDay(settings, d)) { out.offDays.push(d); out.days.push({ date: d, off: true, streak: streak }); }
+        else if (streak > 0 && shields > 0) { shields--; out.restDays.push(d); out.days.push({ date: d, rest: true, streak: streak }); }
         else streak = 0;
       }
     }
@@ -450,7 +472,7 @@
   function skyById(id) { return SKY_BY_ID[id] || SKY_BY_ID.clear; }
 
   // 지난주(월~일) 리포트. 지난주에 기록이 없으면 null
-  function weekRecap(records, todayKey, timeline) {
+  function weekRecap(records, todayKey, timeline, settings) {
     var dow = dayOfWeek(todayKey), mon = addDays(todayKey, -((dow + 6) % 7)), lastMon = addDays(mon, -7), prevMon = addDays(mon, -14);
     var recs = cleanRecords(records);
     var pick = function (from) { var to = addDays(from, 6); return recs.filter(function (r) { return r.date >= from && r.date <= to; }); };
@@ -458,12 +480,14 @@
     if (!w.length) return null;
     var mins = w.map(function (r) { return r.minuteOfDay; }), avg = Math.round(mins.reduce(function (a, b) { return a + b; }, 0) / mins.length);
     var pm = p.map(function (r) { return r.minuteOfDay; }), pavg = pm.length ? Math.round(pm.reduce(function (a, b) { return a + b; }, 0) / pm.length) : null;
-    var wob = mins.length >= 2 ? Math.round(mins.reduce(function (a, m) { return a + Math.abs(m - avg); }, 0) / mins.length) : null;
+    var wob = mins.length >= 3 ? Math.round(sd(mins)) : null;   // 습관 탭과 같은 계산(표준편차), 3일 이상
     var tl = timeline || journeyTimeline(records, todayKey), skies = [];
     w.forEach(function (r) { var di = dayInfo(tl, r.date); if (di && di.sky) skies.push(di.sky); });
     return {
       from: lastMon, to: addDays(lastMon, 6), days: w.length, prevDays: p.length,
       hits: w.filter(function (r) { return evaluate(r).status === 'hit'; }).length,
+      lateDays: w.filter(function (r) { var e = evaluate(r); return e.diff !== null && e.diff > 30; }).length,
+      planned: (function () { var n = 0; for (var i = 0; i < 7; i++) if (!isOffDay(settings, addDays(lastMon, i))) n++; return n; })(),
       avg: avg, prevAvg: pavg, diff: pavg === null ? null : avg - pavg, wobble: wob, skies: skies,
       rests: tl.restDays.filter(function (d) { return d >= lastMon && d <= addDays(lastMon, 6); }).length,
       moods: (function () {
@@ -474,6 +498,7 @@
     };
   }
 
+  var ROOM_WEEK_EACH = 4;   // 방 주간 목표: 한 사람당 4번
   // 우리 방: 오늘 켜진 수, 이번 주(최근 7일) 모두 켠 날. 그날 이후에 들어온 사람은 그날 계산에서 뺌. 2명 이상일 때만.
   function roomTogether(view, todayKey, myLocalMin) {
     var ms = view && Array.isArray(view.members) ? view.members : [];
@@ -491,7 +516,15 @@
       });
       if (all) allDays++;
     }
-    return { lit: lit, total: ms.length, allLitToday: ms.length >= 2 && lit === ms.length, weekAllDays: allDays };
+    var mon = addDays(todayKey, -((dayOfWeek(todayKey) + 6) % 7)), weekLit = 0;
+    ms.forEach(function (m) {
+      for (var k2 = 0; k2 < 7; k2++) {
+        var day2 = addDays(todayKey, k2 - 6); if (day2 < mon) continue;
+        var v2 = Array.isArray(m.week) ? m.week[k2] : null;
+        if (on(v2) || (k2 === 6 && m.me && isInt(myLocalMin) && !on(v2))) weekLit++;
+      }
+    });
+    return { lit: lit, total: ms.length, allLitToday: ms.length >= 2 && lit === ms.length, weekAllDays: allDays, weekLit: weekLit, weekGoal: ms.length * ROOM_WEEK_EACH };
   }
 
   // ---------- 내 기록: 연속 일수, 최근 n일, CSV 내보내기 ----------
@@ -508,7 +541,7 @@
   }
   function csvCell(v) { v = v === null || v === undefined ? '' : String(v); return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
   function recordsCsv(records) {
-    var DOW = ['일', '월', '화', '수', '목', '금', '토'], NAME = { hit: '목표 달성', close: '조금 늦음', late: '늦음', none: '' };
+    var DOW = ['일', '월', '화', '수', '목', '금', '토'], NAME = { hit: '목표 달성', early: '많이 일찍', close: '조금 늦음', late: '늦음', none: '' };
     var rows = [['날짜', '요일', '하루 시작', '그날 목표', '목표와 차이(분)', '결과', '첫 행동']];
     cleanRecords(records).slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; }).forEach(function (r) {
       var ev = evaluate(r);
@@ -518,9 +551,40 @@
     return '\uFEFF' + rows.map(function (r) { return r.map(csvCell).join(','); }).join('\r\n') + '\r\n';
   }
 
+  // ---------- 목표 제안: 기록을 보고 이유와 함께 (자동으로 바꾸지 않음) ----------
+  // advance: 최근 3번 모두 지금 목표 근처(달성) → 15분 앞당길까요?
+  // hold: 최근 3번 중 2번 이상 30분 넘게 늦음 → 지금 목표 유지 (원하면 15분 늦추기)
+  // count: 최근 2주에 4번 이하(시작한 지 10일 넘었을 때) → 시각보다 횟수부터
+  // return: 4일 넘게 쉬고 돌아옴 → 쌓은 것은 그대로, 지금 목표 유지 또는 편하게
+  function stepAdvice(records, s, todayKey) {
+    if (!s) return null;
+    var recs = cleanRecords(records).filter(function (r) { return r.date <= todayKey; });
+    var today = findDay(recs, todayKey); if (!today) return null;
+    var cur = planTargetFor(s, todayKey), stepping = cur > s.targetMin, easeTo = Math.min(Math.max(s.baselineMin, cur), cur + STEP_MIN);
+    var before = recs.filter(function (r) { return r.date < todayKey; });
+    var prev = before.length ? before[before.length - 1] : null;
+    if (prev && daysBetween(prev.date, todayKey) > 4) {
+      return { kind: 'return', cur: cur, easeTo: stepping || s.cur !== undefined ? easeTo : null, gap: daysBetween(prev.date, todayKey) - 1, total: recs.length };
+    }
+    // 드문드문(최근 2주에 4번 이하) 기록 중이면 시각보다 횟수부터
+    var two = recs.filter(function (r) { var d = daysBetween(r.date, todayKey); return d >= 0 && d < 14; });
+    if (recs.length >= 3 && two.length <= 4 && daysBetween(recs[0].date, todayKey) >= 10) return { kind: 'count', cur: cur };
+    var last3 = recs.slice(-3).filter(function (r) { return daysBetween(r.date, todayKey) < 7; });
+    if (!stepping || last3.length < 3) return null;
+    if (last3.every(function (r) { return r.dayTarget === cur && evaluate(r).status === 'hit'; })) return { kind: 'advance', cur: cur, to: Math.max(s.targetMin, cur - STEP_MIN) };
+    if (last3.filter(function (r) { var e = evaluate(r); return e.diff !== null && e.diff > 30; }).length >= 2) return { kind: 'hold', cur: cur, easeTo: easeTo };
+    return null;
+  }
+  function withStep(s, cur) {
+    var n = {}; Object.keys(s).forEach(function (k) { n[k] = s[k]; });
+    n.cur = Math.max(s.targetMin, Math.min(Math.max(s.targetMin, s.baselineMin), cur));
+    return n;
+  }
+
   // ---------- 아침 알림 (캘린더) ----------
   // 내일부터 목표 시각마다 '하루 시작 기록' 알림. 단계 목표(3일마다 15분)는 단계별 일정으로 나누고, 최종 목표는 매일 반복.
   function reminderStages(s, fromKey) {
+    if (isInt(s.cur)) return [{ start: fromKey, min: planTargetFor(s, fromKey), days: 1, forever: true }];   // 기록 기반 단계: 지금 목표로 반복
     var out = [], prev = null;
     for (var i = 0; i < 400; i++) {
       var key = addDays(fromKey, i), t = planTargetFor(s, key);
@@ -541,6 +605,7 @@
     }
     return out;
   }
+  function byDay(s) { return s && Array.isArray(s.days) && s.days.length < 7 ? s.days.slice().sort().map(function (d) { return ['SU', 'MO', 'TU', 'WE', 'TH', 'FR', 'SA'][d]; }).join(',') : ''; }
   function icsStamp(key, min) { return key.replace(/-/g, '') + 'T' + pad2(Math.floor(min / 60)) + pad2(min % 60) + '00'; }
   function reminderIcs(s, fromKey, site, nowIso) {
     var stamp = String(nowIso || '').replace(/[-:]/g, '').replace(/\.\d+/, '').slice(0, 15) + 'Z';
@@ -548,7 +613,7 @@
     reminderStages(s, fromKey).forEach(function (g, i) {
       L.push('BEGIN:VEVENT', 'UID:gachi-wake-morning-' + i + '@gachi-wake', 'DTSTAMP:' + stamp,
         'DTSTART:' + icsStamp(g.start, g.min), 'DURATION:PT10M',
-        'RRULE:FREQ=DAILY' + (g.forever ? '' : ';COUNT=' + g.days),
+        'RRULE:FREQ=' + (byDay(s) ? 'WEEKLY;BYDAY=' + byDay(s) : 'DAILY') + (g.forever ? '' : ';COUNT=' + g.days),
         'SUMMARY:☀ 하루 시작 기록하기 · ' + formatMinute(g.min),
         'DESCRIPTION:일어났으면 같이 일어나요에서 \'하루 시작하기\'를 눌러요.',
         site ? 'URL:' + site : 'X-NO-URL:1', 'TRANSP:TRANSPARENT',
@@ -562,10 +627,10 @@
     var t = planTargetFor(s, fromKey), a = icsStamp(fromKey, t), b = icsStamp(fromKey, Math.min(t + 10, 1439));
     return 'https://calendar.google.com/calendar/render?action=TEMPLATE' +
       '&text=' + encodeURIComponent('☀ 하루 시작 기록하기') +
-      '&dates=' + a + '/' + b + '&ctz=Asia%2FSeoul&recur=' + encodeURIComponent('RRULE:FREQ=DAILY') +
+      '&dates=' + a + '/' + b + '&ctz=Asia%2FSeoul&recur=' + encodeURIComponent(byDay(s) ? 'RRULE:FREQ=WEEKLY;BYDAY=' + byDay(s) : 'RRULE:FREQ=DAILY') +
       '&details=' + encodeURIComponent('일어났으면 같이 일어나요에서 \'하루 시작하기\'를 눌러요.' + (site ? '\n' + site : ''));
   }
-  function reminderSig(s) { return s ? [s.baselineMin, s.targetMin, s.planStart].join('|') : ''; }
+  function reminderSig(s) { return s ? [s.baselineMin, s.targetMin, s.planStart, s.cur, (s.days || []).join('')].join('|') : ''; }
 
   // 한글 자판인 채로 코드를 치면 '아ㅠ2' 처럼 들어온다 → 두벌식 자판 위치로 되돌린다 (아=d+k, ㅠ=b)
   var KO_I = 'r R s e E f a q Q t T d w W c z x v g'.split(' ');
@@ -611,7 +676,7 @@
     if (!isInt(min)) return null;
     if (!isInt(target)) return 'none';
     var d = min - target;
-    return d <= HIT_TOL ? 'hit' : (d <= CLOSE_TOL ? 'close' : 'late');
+    return d < -EARLY_TOL ? 'early' : (d <= HIT_TOL ? 'hit' : (d <= CLOSE_TOL ? 'close' : 'late'));
   }
   function profileFromMember(m, todayKey) {
     if (!m) return null;
@@ -719,6 +784,7 @@
     SKIES: SKIES, TIER_NAMES: TIER_NAMES, MILESTONES: MILESTONES, EFFECTS: EFFECTS, MAX_SHIELDS: MAX_SHIELDS,
     pickSky: pickSky, skyById: skyById, journeyTimeline: journeyTimeline, dayInfo: dayInfo, effectTier: effectTier, nextEffect: nextEffect,
     weekRecap: weekRecap, roomTogether: roomTogether, mulberry32: mulberry32,
+    migrateSettings: migrateSettings, stepAdvice: stepAdvice, withStep: withStep, isOffDay: isOffDay, EARLY_TOL: EARLY_TOL,
     weatherName: weatherName, weatherFamily: weatherFamily, skyForDay: skyForDay, CITIES: CITIES, weatherUrl: weatherUrl, parseWeather: parseWeather,
     monthCells: monthCells, MOODS: MOODS, setMood: setMood,
     reminderStages: reminderStages, reminderIcs: reminderIcs, googleReminderUrl: googleReminderUrl, reminderSig: reminderSig,

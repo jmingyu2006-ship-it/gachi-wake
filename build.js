@@ -43,7 +43,7 @@ function out(rel, content) { fs.mkdirSync(path.dirname(R('dist', rel)), { recurs
 
 out('artifact/index.html', withLogic.replace('<!--__WEB_HEAD__-->', () => SITE_URL ? `<script>window.GACHI_SITE_URL = ${JSON.stringify(SITE_URL)};</script>` : '').replace('/*__WEB_INIT__*/', ''));
 out('web/index.html', withLogic.replace('<!--__WEB_HEAD__-->', () => WEB_HEAD).replace('/*__WEB_INIT__*/', () => WEB_INIT));
-for (const f of ['sw.js', 'manifest.webmanifest', 'config.js', 'supabase.sql', 'supabase-rooms.sql', 'supabase-profiles.sql', 'supabase-owner-accounts.sql', 'supabase-nickname.sql', 'supabase-care.sql', 'supabase-cron.sql', 'supabase-rests.sql', 'supabase-push.sql', 'DEPLOY.md', 'OPERATIONS.md', 'privacy.html', 'terms.html', 'legal.css']) {
+for (const f of ['sw.js', 'manifest.webmanifest', 'config.js', 'supabase.sql', 'supabase-rooms.sql', 'supabase-profiles.sql', 'supabase-owner-accounts.sql', 'supabase-nickname.sql', 'supabase-care.sql', 'supabase-cron.sql', 'supabase-rests.sql', 'supabase-push.sql', 'supabase-together.sql', 'DEPLOY.md', 'OPERATIONS.md', 'privacy.html', 'terms.html', 'legal.css']) {
   if (fs.existsSync(R('web', f))) out('web/' + f, fs.readFileSync(R('web', f)));
 }
 out('web/.nojekyll', '');

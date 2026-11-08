@@ -63,7 +63,7 @@ function mockServer() {
     }
     if (fn === 'room_preview') {
       const c = body.p_code.toLowerCase();
-      return st.rooms.has(c) ? json({ name: st.rooms.get(c), members: active(c).length }) : json({ error: 'room_not_found' });
+      return st.rooms.has(c) ? json({ name: st.rooms.get(c), members: active(c).length, lit: active(c).filter(m => [...st.starts.keys()].some(k => k.startsWith(m.anon))).length }) : json({ error: 'room_not_found' });
     }
     if (fn === 'join_room') {
       const c = body.p_code.toLowerCase();
@@ -89,7 +89,24 @@ function mockServer() {
       if (t.anon === body.p_anon) return json({ error: 'cannot_kick_self' });
       st.bans.add(c + t.anon); return json({ ok: true });
     }
-    if (fn === 'app_info') return st.noFeatures ? json({ message: 'unknown' }, 404) : json({ v: 7, features: ['report', 'recovery', 'erase', 'rests'] });
+    if (fn === 'app_info') return st.noFeatures ? json({ message: 'unknown' }, 404) : json({ v: 9, features: ['report', 'recovery', 'erase', 'rests', 'cheer', 'funnel', 'days'] });
+    if (fn === 'bump_funnel') { st.funnel = st.funnel || []; st.funnel.push(body.p_step); return json(true); }
+    if (fn === 'send_cheer') {
+      const c = body.p_code;
+      if (!isMember(c, body.p_anon)) return json({ error: 'not_member' });
+      const t = active(c).find(m => mkey(m.anon, c) === body.p_key);
+      if (!t) return json({ error: 'member_not_found' });
+      if (t.anon === body.p_anon) return json({ error: 'cannot_cheer_self' });
+      if (!st.starts.has(t.anon + body.today_hint) && ![...st.starts.keys()].some(k => k.startsWith(t.anon))) return json({ error: 'not_lit' });
+      st.cheers = st.cheers || new Map(); st.cheers.set(c + body.p_anon + t.anon, { from: body.p_anon, to: t.anon, code: c, kind: body.p_kind }); return json({ ok: true });
+    }
+    if (fn === 'cheers_today') {
+      const c = body.p_code; if (!isMember(c, body.p_anon)) return json(null);
+      const all = [...(st.cheers || new Map()).values()].filter(x => x.code === c);
+      const nick = (a) => (st.members.find(m => m.code === c && m.anon === a) || {}).nick;
+      return json({ got: all.filter(x => x.to === body.p_anon).map(x => ({ name: nick(x.from), kind: x.kind, key: mkey(x.from, c) })),
+        sent: Object.fromEntries(all.filter(x => x.from === body.p_anon).map(x => [mkey(x.to, c), x.kind])) });
+    }
     if (fn === 'sync_rests') {
       if (!st.members.some(m => m.anon === body.p_anon && !banned(m.code, m.anon))) return json(false);
       st.rests = st.rests || new Set(); body.p_days.forEach(d => { if (!st.starts.has(body.p_anon + d)) st.rests.add(body.p_anon + d); }); return json(true);
@@ -369,7 +386,7 @@ test('프로필: 친구 창문을 누르면 연속 기상·목표·최근 7일�
   await me.getByRole('button', { name: '닫기' }).click();
   await me.locator('.unit.me').click();
   await me.getByText('오늘 시작하면 1일').waitFor();
-  assert.equal(await me.locator('.pstats .stat-num').nth(1).textContent(), '07:00', '내 목표도 올라감');
+  assert.equal(await me.locator('.pstats .stat-num').nth(1).textContent(), '07:45', '내 목표도 올라감 (지금 단계 목표)');
   assert.deepEqual(me.errors, []); assert.deepEqual(fr.errors, []);
   await me.context().close(); await fr.context().close();
 });
@@ -672,7 +689,7 @@ test('도움: 친구 신고(운영자에게만), 의견 보내기, 서버의 내
   await fr.getByRole('button', { name: '신고 보내기' }).click();
   await fr.getByText('신고를 보냈어요. 확인해 볼게요.').waitFor();
   const rp = srv.st.reports.find(r => r.p_kind === 'report');
-  assert.equal(rp.target_name, '민규'); assert.equal(rp.p_reason, '부적절한 이름'); assert.equal(rp.p_room, code); assert.match(rp.p_meta, /^v0\.7\.0 · web · /);
+  assert.equal(rp.target_name, '민규'); assert.equal(rp.p_reason, '부적절한 이름'); assert.equal(rp.p_room, code); assert.match(rp.p_meta, /^v0\.9\.0 · web · /);
   // 내 프로필에는 신고 버튼 없음
   await unit(fr, '민수').click();
   assert.equal(await fr.locator('#sheetBody').getByRole('button', { name: '신고하기' }).count(), 0);
@@ -766,7 +783,7 @@ test('서버에 새 기능이 아직 없으면 버튼이 숨고, 화면 오류�
   await new Promise(r => setTimeout(r, 300));
   const errs = on.st.reports.filter(r => r.p_kind === 'error');
   assert.deepEqual(errs.map(e => e.p_body), ['boom-0', 'boom-1', 'boom-2']);
-  assert.match(errs[0].p_meta, /v0\.7\.0/);
+  assert.match(errs[0].p_meta, /v0\.9\.0/);
   await q.context().close();
 });
 
@@ -828,6 +845,50 @@ test('방을 보고 있을 때 친구가 불을 켜면 알려 준다', async () 
   await startDay(fr);
   await me.clock.runFor(21000);
   await me.getByText('민수 님이 불을 켰어요 · 06:40').waitFor();
+  assert.deepEqual(me.errors, []); assert.deepEqual(fr.errors, []);
+  await me.context().close(); await fr.context().close();
+});
+
+test('초대받은 사람: 첫 화면에서 방 미리보기(오늘 켜진 수) → 목표 정하고 들어가기 / 응원 주고받기 / 이번 주 함께 켜기', async () => {
+  const srv = mockServer();
+  const me = await person('2026-11-09T06:30:00', srv);
+  await onboard(me);
+  await me.getByRole('button', { name: '+ 방 만들기' }).click();
+  await me.getByLabel('방 이름 (20자까지)').fill('새벽반');
+  await me.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민규');
+  await me.getByRole('button', { name: '방 만들기', exact: true }).click();
+  await me.getByText("'새벽반' 방을 만들었어요").waitFor();
+  await me.getByRole('button', { name: '닫기' }).click();
+  await startDay(me);
+  const code = [...srv.st.rooms.keys()][0];
+  for (let i = 0; i < 20 && !srv.st.starts.size; i++) await me.clock.runFor(200);
+  // 친구: 초대 링크로 처음 방문 → 설정 전에 방 미리보기
+  const fr = await person('2026-11-09T06:40:00', srv, BASE + '?room=' + code);
+  await fr.getByText("'새벽반' 방에 초대받았어요.").waitFor();
+  await fr.getByText('지금 1명 중 1명이 오늘 불을 켰어요', { exact: false }).waitFor();
+  await fr.screenshot({ path: path.join(SHOTS, 'v09-invite-preview.png') });
+  await onboard(fr);
+  await fr.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민수');
+  await fr.getByRole('button', { name: '들어가기', exact: true }).click();
+  await fr.getByText('1명 / 2명이 하루를 시작했어요').waitFor();
+  await featuresReady(fr);
+  // 이번 주 함께 켜기: 2명 × 4 = 8, 지금 1
+  await fr.locator('#roomGoal').getByText('1 / 8').waitFor();
+  // 친구가 켜기 전엔 나에게 응원 버튼 대신 안내 (민규는 켰으니 응원 가능)
+  await unit(fr, '민규').click();
+  await fr.getByRole('button', { name: '☀️ 좋은 아침' }).click();
+  await fr.getByText('민규 님에게 ☀️ 좋은 아침을 보냈어요').waitFor();
+  assert.equal(await fr.getByRole('button', { name: '☀️ 좋은 아침' }).getAttribute('aria-pressed'), 'true');
+  await fr.screenshot({ path: path.join(SHOTS, 'v09-cheer.png') });
+  await fr.getByRole('button', { name: '닫기' }).click();
+  assert.match(await unit(fr, '민규').textContent(), /☀️/, '내가 보낸 응원 표시');
+  // 나: 다음 새로 고침에 응원 도착
+  await featuresReady(me);
+  await me.clock.runFor(21000);
+  await me.clock.runFor(21000);
+  await me.getByText('받은 응원 ☀️민수', { exact: false }).waitFor();
+  assert.ok(srv.st.funnel.includes('room'), '단계 집계: 방');
+  assert.ok(srv.st.funnel.includes('invite_visit') && srv.st.funnel.includes('cheer'));
   assert.deepEqual(me.errors, []); assert.deepEqual(fr.errors, []);
   await me.context().close(); await fr.context().close();
 });

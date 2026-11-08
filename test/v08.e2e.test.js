@@ -124,16 +124,17 @@ test('푸시 알림: 켜기(권한·구독·서버 저장) → 테스트 알림 
   const page = await open('2026-11-09T22:00:00', srv, { push: true });
   await onboard(page);
   await page.waitForFunction(() => window.__wakeApp && window.__wakeApp.state.features.includes('push'));
-  await page.locator('section.card', { hasText: '아침 알림 맞추기' }).waitFor();
-  await page.getByRole('button', { name: '맞추기' }).click();
+  await page.locator('section.card', { hasText: '내일 첫 아침 예약하기' }).waitFor();
+  await page.getByRole('button', { name: '예약' }).click();
   await page.getByText('푸시 알림 (추천)').waitFor();
   await page.screenshot({ path: path.join(SHOTS, 'v08-push-sheet.png') });
   await page.getByLabel(/아침 알림 · 목표 시각에/).check();
   await page.getByText('알림을 켰어요. 테스트 알림으로 확인해 보세요.').waitFor();
   const prefs = srv.st.subs.get('https://fcm.googleapis.com/fcm/send/fake-1');
-  assert.deepEqual(prefs, { morning: true, bedtime: false, weekdaysOnly: false, baselineMin: 480, targetMin: 420, planStart: '2026-11-09', sleepH: 8 });
+  assert.deepEqual(prefs, { morning: true, bedtime: false, weekdaysOnly: false, baselineMin: 465, targetMin: 465, planStart: '2026-11-09', sleepH: 8, days: [0, 1, 2, 3, 4, 5, 6] }, '지금 단계 목표(07:45)로');
   await page.getByRole('button', { name: '닫기' }).last().click();
-  assert.equal(await page.locator('section.card', { hasText: '아침 알림 맞추기' }).count(), 0, '알림 켠 사람에겐 카드 안 보임');
+  assert.equal(await page.locator('section.card', { hasText: '첫 아침 예약하기' }).count(), 0, '알림 켠 사람에겐 예약 카드 대신 안내');
+  await page.getByText('내일 첫 아침 07:45 알림이 예약돼 있어요', { exact: false }).waitFor();
   // 설정: 잘 시간·평일만, 테스트 알림
   await page.getByRole('button', { name: '목표 설정 열기' }).click();
   await page.getByLabel(/잘 시간 알림/).check();
@@ -146,12 +147,13 @@ test('푸시 알림: 켜기(권한·구독·서버 저장) → 테스트 알림 
     await page.locator('#sheetBody').evaluate((e, y) => { (e.closest('.sheet-panel') || e.parentElement).scrollTop = y; e.scrollTop = y; }, y);
     await page.screenshot({ path: path.join(SHOTS, 'v08-settings-' + i + '.png') });
   }
-  // 목표를 바꾸면 서버의 알림 시각 정보도
-  await page.locator('.stepper[data-for="targetMin"] [data-d="15"]').click();
+  // 평소 시각을 바꾸면(차이 30분 → 바로 07:00) 서버의 알림 시각도
+  await page.locator('.stepper[data-for="baselineMin"] [data-d="-15"]').click();
+  await page.locator('.stepper[data-for="baselineMin"] [data-d="-15"]').click();   // 07:30 → 목표와 30분 차이라 바로 07:00
   await page.getByRole('button', { name: '저장', exact: true }).click();
   await page.waitForFunction(() => true);
-  for (let i = 0; i < 20 && srv.st.subs.get('https://fcm.googleapis.com/fcm/send/fake-1').targetMin !== 435; i++) await page.clock.runFor(100);
-  assert.equal(srv.st.subs.get('https://fcm.googleapis.com/fcm/send/fake-1').targetMin, 435);
+  for (let i = 0; i < 20 && srv.st.subs.get('https://fcm.googleapis.com/fcm/send/fake-1').targetMin !== 420; i++) await page.clock.runFor(100);
+  assert.equal(srv.st.subs.get('https://fcm.googleapis.com/fcm/send/fake-1').targetMin, 420);
   // 끄기 (둘 다 해제)
   await page.getByRole('button', { name: '목표 설정 열기' }).click();
   await page.getByLabel(/아침 알림 · 목표 시각에/).uncheck();

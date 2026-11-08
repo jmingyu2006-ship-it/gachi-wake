@@ -67,20 +67,19 @@ test('밤 1시 첫 방문: 잘 시간 안내 → 아침 알림(캘린더 파일�
   assert.match(await page.locator('#obBody').getByRole('link', { name: '개인정보 처리방침' }).getAttribute('href'), /\/privacy\.html$/);
   await onboard(page);
   await page.getByText('지금은 잘 시간이에요. 지금 잠들면 목표까지 6시간 45분 잘 수 있어요.').waitFor();
-  await page.getByText('아침 알림 맞추기').waitFor();
+  await page.getByText('오늘 첫 아침 예약하기').waitFor();
   await page.screenshot({ path: path.join(SHOTS, 'care-night.png'), fullPage: true });
-  await page.getByRole('button', { name: '맞추기' }).click();
-  await page.getByText('오늘 07:45부터, 단계 목표에 맞춰 당겨져서 11월 18일부터 매일 07:00').waitFor();
+  await page.getByRole('button', { name: '예약' }).click();
+  await page.getByText('오늘부터 매일 07:45').waitFor();
   const gcal = await page.getByRole('link', { name: '구글 캘린더에 추가' }).getAttribute('href');
   assert.match(gcal, /^https:\/\/calendar\.google\.com\/calendar\/render\?action=TEMPLATE&.*dates=20261109T074500\/20261109T075500&ctz=Asia%2FSeoul&recur=RRULE%3AFREQ%3DDAILY/);
   await page.screenshot({ path: path.join(SHOTS, 'care-reminder.png') });
   const [dl] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: '아이폰·맥 캘린더에 추가' }).click()]);
   assert.equal(dl.suggestedFilename(), 'gachi-wake-morning.ics');
   const ics = (await readDownload(dl)).replace(/\r\n /g, '');
-  assert.match(ics, /DTSTART:20261109T074500\r\nDURATION:PT10M\r\nRRULE:FREQ=DAILY;COUNT=3/);
-  assert.match(ics, /DTSTART:20261118T070000\r\nDURATION:PT10M\r\nRRULE:FREQ=DAILY\r\n/);
-  assert.equal((ics.match(/BEGIN:VEVENT/g) || []).length, 4);
-  assert.equal(await page.locator('section.card', { hasText: '아침 알림 맞추기' }).count(), 0, '맞춘 뒤엔 카드 사라짐');
+  assert.match(ics, /DTSTART:20261109T074500\r\nDURATION:PT10M\r\nRRULE:FREQ=DAILY\r\n/, '지금 단계 목표로 매일 (앞당기면 다시 추가)');
+  assert.equal((ics.match(/BEGIN:VEVENT/g) || []).length, 1);
+  assert.equal(await page.locator('section.card', { hasText: '첫 아침 예약하기' }).count(), 0, '맞춘 뒤엔 카드 사라짐');
   // 목표를 바꾸면 다시 맞추라고 안내
   await page.getByRole('button', { name: '목표 설정 열기' }).click();
   assert.equal(await page.getByText('내 기기 번호 앞 8자리').count(), 0, '서버 없는 모드에선 기기 번호 안내 없음');
@@ -96,7 +95,7 @@ test('기록 이미지(1080×1920)와 엑셀용 CSV 내보내기', async () => {
   await onboard(page);
   await startDay(page);
   await page.clock.runFor(1600);
-  await page.getByText('오늘 기록 이미지').waitFor();
+  await page.getByRole('button', { name: '기록 이미지' }).waitFor();
   await page.locator('[data-share-image]').click();
   await page.getByRole('button', { name: '공유하기' }).and(page.locator(':not([disabled])')).waitFor();
   const size = await page.locator('#shareImg').evaluate(i => [i.naturalWidth, i.naturalHeight, i.src.slice(0, 22)]);
