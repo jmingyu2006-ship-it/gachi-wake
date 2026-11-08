@@ -36,6 +36,7 @@
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--night); color: var(--ink); }
+  [hidden] { display: none !important; }
   body { font-family: 'Noto Sans KR', -apple-system, 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; -webkit-font-smoothing: antialiased; }
   button, input { font-family: inherit; color: inherit; }
   button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
@@ -224,6 +225,31 @@
   .legal-line { font-size: 12.5px; color: var(--dim); text-align: center; line-height: 1.7; margin: 10px 0 0; }
   .ghost.wide { width: 100%; margin-top: 14px; min-height: 46px; }
   .field textarea { min-height: 96px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface2); padding: 12px 14px; font-size: 16px; font-family: inherit; color: inherit; resize: vertical; line-height: 1.6; }
+  .start-btn.nudge { animation: nudge 1s ease-in-out 3; }
+  @keyframes nudge { 50% { transform: scale(1.04); box-shadow: 0 0 0 8px rgba(255,138,76,.25); } }
+  .field select { min-height: 48px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface2); padding: 0 12px; font-size: 16px; color: inherit; font-family: inherit; }
+  .fx-rain { background-image: repeating-linear-gradient(105deg, rgba(200,215,235,.0) 0 9px, rgba(200,215,235,.35) 9px 10px); background-size: 40px 40px; animation: rainfall .6s linear infinite; }
+  @keyframes rainfall { from { background-position: 0 0; } to { background-position: -8px 40px; } }
+  .fx-snow { background-image: radial-gradient(circle, rgba(255,255,255,.9) 1.4px, transparent 2px), radial-gradient(circle, rgba(255,255,255,.7) 1px, transparent 1.5px); background-size: 34px 30px, 23px 21px; animation: snowfall 6s linear infinite; }
+  @keyframes snowfall { from { background-position: 0 0, 10px 0; } to { background-position: 8px 60px, 2px 42px; } }
+  .fx-storm { animation: flash 7s infinite; background: rgba(230,225,255,0); }
+  @keyframes flash { 0%, 90%, 94%, 100% { background: rgba(230,225,255,0); } 91%, 93% { background: rgba(230,225,255,.35); } }
+  .moods { display: flex; gap: 6px; margin-top: 10px; align-items: center; flex-wrap: wrap; }
+  .moods .label { margin-right: 4px; }
+  .moods button { min-height: 36px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface2); color: var(--muted); font-size: 13px; padding: 0 12px; font-weight: 700; }
+  .moods button[aria-pressed="true"] { border-color: var(--lit); color: var(--lit); background: rgba(255,199,90,.1); }
+  .cal-head { display: flex; align-items: center; justify-content: space-between; }
+  .cal-head button { min-width: 44px; min-height: 40px; border-radius: 12px; border: 1px solid var(--line); background: var(--surface2); color: var(--ink); font-size: 16px; }
+  .cal { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-top: 10px; }
+  .cal .dw { text-align: center; font-size: 11px; color: var(--dim); padding-bottom: 2px; }
+  .cal .c { aspect-ratio: 1 / 1.05; border-radius: 9px; background: var(--surface2); border: none; color: var(--dim); font-size: 11px; display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.15; padding: 0; }
+  .cal .c b { font-size: 12px; color: var(--ink); font-weight: 700; }
+  .cal .c.on { color: #10151F; } .cal .c.on b { color: #0E1322; }
+  .cal .c.on small { font-weight: 700; font-size: 10px; text-shadow: 0 0 2px rgba(255,255,255,.4); }
+  .cal .c.rest { background: #1E3346; border: 1px dashed #3C6A8C; }
+  .cal .c.today { outline: 2px solid var(--lit); outline-offset: -2px; }
+  .cal .c.fut { background: transparent; border: 1px solid #1F2740; }
+  .cal .c.empty { background: transparent; }
   .field input.code-input { font-family: var(--num); font-size: 22px; letter-spacing: 4px; text-align: center; text-transform: lowercase; }
   .field input.code-input::placeholder { letter-spacing: 1px; font-size: 16px; }
   .hint-small { font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
@@ -499,7 +525,10 @@
       id: r.id, date: r.date, wokeAt: r.wokeAt, minuteOfDay: r.minuteOfDay, cohort: r.cohort,
       dayTarget: isInt(r.dayTarget) ? r.dayTarget : null,
       actionDoneAt: r.actionDoneAt || null,
-      greetedAt: r.greetedAt || null
+      greetedAt: r.greetedAt || null,
+      wx: isInt(r.wx) && r.wx >= 0 && r.wx <= 99 ? r.wx : null,
+      tc: isInt(r.tc) && r.tc >= -60 && r.tc <= 60 ? r.tc : null,
+      mood: isInt(r.mood) && r.mood >= 1 && r.mood <= 3 ? r.mood : null
     };
   }
 
@@ -508,6 +537,8 @@
     var out = normalize(first);
     out.actionDoneAt = a.actionDoneAt || b.actionDoneAt || null;
     out.greetedAt = a.greetedAt || b.greetedAt || null;
+    if (out.wx === null) { var o = first === a ? b : a; if (isInt(o.wx)) { out.wx = o.wx; out.tc = isInt(o.tc) ? o.tc : null; } }
+    if (out.mood === null) out.mood = isInt(a.mood) ? a.mood : (isInt(b.mood) ? b.mood : null);
     if (out.dayTarget === null) out.dayTarget = isInt(a.dayTarget) ? a.dayTarget : (isInt(b.dayTarget) ? b.dayTarget : null);
     return out;
   }
@@ -528,7 +559,7 @@
     return null;
   }
 
-  function createStartRecord(records, now, settings) {
+  function createStartRecord(records, now, settings, extra) {
     var key = toDateKey(now);
     var existing = findDay(records, key);
     if (existing) return { ok: true, created: false, record: existing, records: records };
@@ -536,7 +567,8 @@
     if (phase !== 'open') return { ok: false, reason: phase === 'before' ? 'too-early' : 'too-late', records: records };
     var rec = {
       id: 'w-' + key, date: key, wokeAt: toLocalISO(now), minuteOfDay: min, cohort: cohortOf(min),
-      dayTarget: settings ? planTargetFor(settings, key) : null, actionDoneAt: null, greetedAt: null
+      dayTarget: settings ? planTargetFor(settings, key) : null, actionDoneAt: null, greetedAt: null,
+      wx: extra && isInt(extra.wx) ? extra.wx : null, tc: extra && isInt(extra.tc) ? extra.tc : null, mood: null
     };
     return { ok: true, created: true, record: rec, records: cleanRecords(records.concat([rec])) };
   }
@@ -684,7 +716,11 @@
     { id: 'stars', name: '별이 남은 새벽', tier: 2, top: '#0C1230', mid: '#3A3E79', bot: '#EFA67A', sun: '#FFD9B0', fx: 'stars' },
     { id: 'halo', name: '햇무리', tier: 2, top: '#1E3C69', mid: '#76ADDF', bot: '#FFF2D0', sun: '#FFFBEA', fx: 'halo' },
     { id: 'aurora', name: '오로라 새벽', tier: 3, top: '#051224', mid: '#12495A', bot: '#EFB57A', sun: '#FFE2B8', fx: 'aurora' },
-    { id: 'meteor', name: '유성우 새벽', tier: 3, top: '#090E25', mid: '#2D2969', bot: '#E6997A', sun: '#FFD6C2', fx: 'meteor' }
+    { id: 'meteor', name: '유성우 새벽', tier: 3, top: '#090E25', mid: '#2D2969', bot: '#E6997A', sun: '#FFD6C2', fx: 'meteor' },
+    // 실제 날씨를 켰을 때만 나오는 하늘 (무작위 뽑기에는 안 들어감 → 예전 기록의 하늘은 그대로)
+    { id: 'rain', name: '비 오는 아침', tier: 0, top: '#1E2738', mid: '#46546E', bot: '#8C97A8', sun: '#C9D2DE', fx: 'rain', weather: true },
+    { id: 'snow', name: '눈 오는 아침', tier: 2, top: '#2B3550', mid: '#8A9BB8', bot: '#E8EEF6', sun: '#FFFFFF', fx: 'snow', weather: true },
+    { id: 'storm', name: '천둥 치는 아침', tier: 2, top: '#0E1220', mid: '#2E3550', bot: '#5B6380', sun: '#E8E0FF', fx: 'storm', weather: true }
   ];
   var SKY_BY_ID = {}; SKIES.forEach(function (k) { SKY_BY_ID[k.id] = k; });
   var TIER_NAMES = ['흔함', '가끔', '드묾', '아주 드묾'];
@@ -693,7 +729,7 @@
   function pickSky(rand, hit, streak, minTier) {
     var HIT = [1, 1.2, 1.6, 1.8], RUN = [1, 1, 1.3, 1.2], pool = [], sum = 0;
     SKIES.forEach(function (k) {
-      if (k.tier < (minTier || 0)) return;
+      if (k.weather || k.tier < (minTier || 0)) return;
       var w = TIER_W[k.tier] * (hit ? HIT[k.tier] : 1) * (streak >= 7 ? RUN[k.tier] : 1);
       pool.push([k.id, w]); sum += w;
     });
@@ -701,6 +737,66 @@
     for (var i = 0; i < pool.length; i++) { x -= pool[i][1]; if (x < 0) return pool[i][0]; }
     return pool[pool.length - 1][0];
   }
+  // WMO 날씨 코드 → 이름, 하늘 갈래
+  function weatherName(code) {
+    if (!isInt(code)) return '';
+    if (code === 0) return '맑음'; if (code <= 2) return '구름 조금'; if (code === 3) return '흐림';
+    if (code === 45 || code === 48) return '안개'; if (code >= 51 && code <= 57) return '이슬비';
+    if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return code >= 80 ? '소나기' : '비';
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86) return '눈';
+    if (code >= 95) return '뇌우';
+    return '';
+  }
+  function weatherFamily(code) {
+    if (!isInt(code)) return null;
+    if (code >= 95) return 'storm';
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'snow';
+    if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return 'rain';
+    if (code === 45 || code === 48) return 'mist';
+    if (code === 3) return 'cloudy';
+    return null;   // 맑음·구름 조금: 평소처럼 하늘 뽑기
+  }
+  // 날씨가 뚜렷한 날은 그 하늘. 칭호 날(드묾 이상 보장)에 비가 오면 무지개, 흐림·안개면 드문 하늘 중에서
+  function skyForDay(rand, hit, streak, milestone, wx) {
+    var fam = weatherFamily(wx);
+    if (fam) {
+      var id = fam;
+      if (milestone && SKY_BY_ID[id].tier < 2) return fam === 'rain' ? 'rainbow' : pickSky(rand, hit, streak, 2);
+      if (fam === 'rain' && hit && rand() < 0.12) return 'rainbow';
+      return id;
+    }
+    return pickSky(rand, hit, streak, milestone ? 2 : 0);
+  }
+  var CITIES = [
+    { name: '서울', lat: 37.57, lon: 126.98 }, { name: '인천', lat: 37.46, lon: 126.71 }, { name: '수원', lat: 37.26, lon: 127.03 },
+    { name: '춘천', lat: 37.88, lon: 127.73 }, { name: '강릉', lat: 37.75, lon: 128.88 }, { name: '청주', lat: 36.64, lon: 127.49 },
+    { name: '대전', lat: 36.35, lon: 127.38 }, { name: '세종', lat: 36.48, lon: 127.29 }, { name: '전주', lat: 35.82, lon: 127.15 },
+    { name: '광주', lat: 35.16, lon: 126.85 }, { name: '대구', lat: 35.87, lon: 128.6 }, { name: '포항', lat: 36.02, lon: 129.34 },
+    { name: '울산', lat: 35.54, lon: 129.31 }, { name: '부산', lat: 35.18, lon: 129.08 }, { name: '창원', lat: 35.23, lon: 128.68 },
+    { name: '제주', lat: 33.5, lon: 126.53 }
+  ];
+  function weatherUrl(lat, lon) {
+    return 'https://api.open-meteo.com/v1/forecast?latitude=' + (Math.round(lat * 10) / 10) + '&longitude=' + (Math.round(lon * 10) / 10) +
+      '&current=temperature_2m,weather_code&timezone=Asia%2FSeoul';
+  }
+  function parseWeather(j) {
+    var c = j && j.current;
+    if (!c || !isInt(c.weather_code) || typeof c.temperature_2m !== 'number') return null;
+    return { wx: c.weather_code, tc: Math.round(c.temperature_2m) };
+  }
+  // 달력: 그 달의 칸(앞쪽 빈칸 포함, 일요일 시작)
+  function monthCells(year, month) {
+    var first = year + '-' + pad2(month) + '-01', lead = dayOfWeek(first), days = new Date(Date.UTC(year, month, 0)).getUTCDate(), out = [];
+    for (var i = 0; i < lead; i++) out.push(null);
+    for (var d = 1; d <= days; d++) out.push(year + '-' + pad2(month) + '-' + pad2(d));
+    return out;
+  }
+  var MOODS = [{ v: 1, label: '피곤해요' }, { v: 2, label: '그럭저럭' }, { v: 3, label: '개운해요' }];
+  function setMood(records, key, v) {
+    if (!(v === null || (isInt(v) && v >= 1 && v <= 3))) return records;
+    return cleanRecords(records).map(function (r) { if (r.date !== key) return r; var n = normalize(r); n.mood = v; return n; });
+  }
+
   var MILESTONES = [
     { n: 3, title: '새벽 탐험가' }, { n: 7, title: '일주일의 리듬' }, { n: 14, title: '아침의 단골' }, { n: 21, title: '습관의 씨앗' },
     { n: 30, title: '한 달의 빛' }, { n: 50, title: '반짝이는 건물' }, { n: 66, title: '습관 완성' }, { n: 100, title: '아침의 주인' }
@@ -727,7 +823,8 @@
       if (r) {
         n++; streak++;
         var ev = evaluate(r), hit = ev.status === 'hit', ms = MS_AT[n] || null;
-        var sky = n === 1 ? 'gold' : pickSky(mulberry32(hashString(seed + '|' + d)), hit, streak, ms ? 2 : 0);
+        var rnd = mulberry32(hashString(seed + '|' + d));
+        var sky = (n === 1 && !weatherFamily(r.wx)) ? 'gold' : skyForDay(rnd, hit, streak, !!ms, r.wx);
         var earned = false;
         if (n % SHIELD_EVERY === 0 && shields < MAX_SHIELDS) { shields++; earned = true; }
         out.days.push({ date: d, rec: true, n: n, streak: streak, sky: sky, hit: hit, milestone: ms, shieldEarned: earned });
@@ -765,7 +862,12 @@
       from: lastMon, to: addDays(lastMon, 6), days: w.length, prevDays: p.length,
       hits: w.filter(function (r) { return evaluate(r).status === 'hit'; }).length,
       avg: avg, prevAvg: pavg, diff: pavg === null ? null : avg - pavg, wobble: wob, skies: skies,
-      rests: tl.restDays.filter(function (d) { return d >= lastMon && d <= addDays(lastMon, 6); }).length
+      rests: tl.restDays.filter(function (d) { return d >= lastMon && d <= addDays(lastMon, 6); }).length,
+      moods: (function () {
+        var g = {}; w.forEach(function (r) { if (isInt(r.mood)) (g[r.mood] = g[r.mood] || []).push(r.minuteOfDay); });
+        var out = {}; Object.keys(g).forEach(function (k) { out[k] = { n: g[k].length, avg: Math.round(g[k].reduce(function (a, b) { return a + b; }, 0) / g[k].length) }; });
+        return out;
+      })()
     };
   }
 
@@ -1014,6 +1116,8 @@
     SKIES: SKIES, TIER_NAMES: TIER_NAMES, MILESTONES: MILESTONES, EFFECTS: EFFECTS, MAX_SHIELDS: MAX_SHIELDS,
     pickSky: pickSky, skyById: skyById, journeyTimeline: journeyTimeline, dayInfo: dayInfo, effectTier: effectTier, nextEffect: nextEffect,
     weekRecap: weekRecap, roomTogether: roomTogether, mulberry32: mulberry32,
+    weatherName: weatherName, weatherFamily: weatherFamily, skyForDay: skyForDay, CITIES: CITIES, weatherUrl: weatherUrl, parseWeather: parseWeather,
+    monthCells: monthCells, MOODS: MOODS, setMood: setMood,
     reminderStages: reminderStages, reminderIcs: reminderIcs, googleReminderUrl: googleReminderUrl, reminderSig: reminderSig,
     serverPayload: serverPayload, parseServerCounts: parseServerCounts, hashString: hashString
   };
@@ -1027,7 +1131,7 @@
   'use strict';
   var L = window.WakeLogic;
   var CFG = window.GACHI_CONFIG || {};
-  var K = { settings: 'gachi-v2-settings', records: 'gachi-v2-records', anon: 'gachi-anon-id', pending: 'gachi-v2-pending', v1: 'gachi-wake-v1', rooms: 'gachi-v2-rooms', view: 'gachi-v2-view', nick: 'gachi-v2-nick', pendingRoom: 'gachi-v2-pending-room', account: 'gachi-v2-account', consent: 'gachi-v2-consent', age14: 'gachi-v2-age14', reminder: 'gachi-v2-reminder', installHide: 'gachi-v2-install-hide', sound: 'gachi-v2-sound', recapSeen: 'gachi-v2-recap-seen', skiesSeen: 'gachi-v2-skies-seen' };
+  var K = { settings: 'gachi-v2-settings', records: 'gachi-v2-records', anon: 'gachi-anon-id', pending: 'gachi-v2-pending', v1: 'gachi-wake-v1', rooms: 'gachi-v2-rooms', view: 'gachi-v2-view', nick: 'gachi-v2-nick', pendingRoom: 'gachi-v2-pending-room', account: 'gachi-v2-account', consent: 'gachi-v2-consent', age14: 'gachi-v2-age14', reminder: 'gachi-v2-reminder', installHide: 'gachi-v2-install-hide', sound: 'gachi-v2-sound', recapSeen: 'gachi-v2-recap-seen', skiesSeen: 'gachi-v2-skies-seen', weather: 'gachi-v2-weather', wxCache: 'gachi-v2-wx-cache', push: 'gachi-v2-push' };
   var TRIAL_TIMES = [348, 402, 435, 480, 570, 740];
   var ACTIONS = ['커튼 열고 햇빛 보기', '물 한 잔 마시기', '이불 개기', '스트레칭 1분'];
   var AGES = [{ id: '10', label: '10대', sleep: 9 }, { id: '20', label: '20대', sleep: 8 }, { id: '30', label: '30대 이상', sleep: 8 }];
@@ -1178,6 +1282,7 @@
     Cloud.save('settings', s);
     syncProfile();
     saveAccountSoon();
+    if (Local.get(K.push)) updatePushPrefs();
   }
 
   // ---------- 시간 ----------
@@ -1387,7 +1492,10 @@
         '<h2 class="status-title">' + title + '</h2>' + (sub ? '<p class="status-sub">' + sub + '</p>' : '') +
         '<div class="sky-row">' + skySwatch(sk) + '<div style="flex:1"><div>오늘의 하늘 · <b>' + esc(sk.name) + '</b>' + tierTag(sk) + '</div>' +
         '<div class="sub">연속 <b class="num">' + tl.streak + '일</b> · 보호권 ' + shieldsHtml(tl.shields) + (nx && effectPhrase(nx) ? ' · ' + nx.left + '일 뒤 ' + nx.label : '') + '</div></div>' +
-        '<button type="button" class="link-btn quiet" data-replay>다시 보기</button></div></section>';
+        '<button type="button" class="link-btn quiet" data-replay>다시 보기</button></div>' +
+        (weatherLine(rec) ? '<p class="status-sub" style="margin-top:8px">' + weatherLine(rec) + '</p>' : '') +
+        (state.trial ? '' : '<div class="moods" role="group" aria-label="오늘 컨디션"><span class="label">컨디션</span>' + L.MOODS.map(function (m) { return '<button type="button" data-mood="' + m.v + '" aria-pressed="' + (rec.mood === m.v) + '">' + m.label + '</button>'; }).join('') + '</div>') +
+        (canUndo(rec) ? '<div style="margin-top:6px"><button type="button" class="link-btn quiet" data-undo>잘못 눌렀어요 · 취소</button></div>' : '') + '</section>';
       html += '<section class="card action"><div><div class="label">일어나서 바로 할 한 가지</div><div class="action-text">' + esc(s.firstAction) + '</div></div>' +
         (rec.actionDoneAt ? '<span class="done">' + CHECK + '했어요</span>' : '<button type="button" class="ghost" id="actionBtn">했어요</button>') + '</section>';
       html += '<section class="card action"><div><div class="label">같이 일어날 사람이 늘수록 창문이 많아져요</div><div class="action-text">친구 창문도 켜 주기</div></div>' +
@@ -1476,7 +1584,7 @@
     var key = L.toDateKey(now), s = state.settings, recs = currentRecords();
     var st = L.habitStats(recs, key, s);
     var tl = L.journeyTimeline(recs, key), recap = L.weekRecap(recs, key, tl);
-    var html = '<section class="fade" style="display:flex;flex-direction:column;gap:14px"><h1 class="h1">습관</h1>';
+    var html = '<section' + (state.quiet ? '' : ' class="fade"') + ' style="display:flex;flex-direction:column;gap:14px"><h1 class="h1">습관</h1>';
     // 연속·보호권
     var nx = L.nextEffect(tl.streak);
     html += '<div class="card"><div class="row-between"><div><div class="label">연속 기록</div><div class="stat-num num" style="margin-top:4px">' + tl.streak + '일</div></div>' +
@@ -1495,14 +1603,36 @@
       '<div class="my-bld" role="img" aria-label="66칸 중 ' + cur + '칸 불 켜짐"><div class="g">' + cells + '</div></div><div class="bld-ground"></div>' +
       (done ? '<div class="skyline" aria-label="완성한 건물 ' + done + '채">' + new Array(done + 1).join('<i></i>') + '</div>' : '') +
       '<p class="status-sub">기록한 날마다 그날 하늘 색으로 한 층씩 불이 켜져요. 66일은 새 습관이 자리 잡는 데 걸린 기간의 중앙값이에요. 연속일 필요는 없어요.</p></div>';
+    // 달력: 그날 하늘 색, 시각, 쉰 날 방패
+    var cm = state.calMonth || key.slice(0, 7), cy = +cm.slice(0, 4), cmo = +cm.slice(5, 7), dayMap = {};
+    tl.days.forEach(function (d) { dayMap[d.date] = d; });
+    var recMap = {}; recs.forEach(function (r) { recMap[r.date] = r; });
+    var monthRecs = 0;
+    var calCells = L.monthCells(cy, cmo).map(function (dk) {
+      if (!dk) return '<span class="c empty"></span>';
+      var d = dayMap[dk], r = recMap[dk], day = +dk.slice(8);
+      if (d && d.rec && r) {
+        monthRecs++;
+        var k2 = L.skyById(d.sky);
+        return '<button type="button" class="c on' + (dk === key ? ' today' : '') + '" data-cal="' + dk + '" style="background:' + skyGrad(k2, 160) + '" aria-label="' + cmo + '월 ' + day + '일 ' + L.formatMinute(r.minuteOfDay) + ' ' + esc(k2.name) + '"><b>' + day + '</b><small>' + L.formatMinute(r.minuteOfDay) + '</small></button>';
+      }
+      if (d && d.rest) return '<span class="c rest" aria-label="' + day + '일 보호권으로 쉰 날"><b>' + day + '</b><span class="shield"><i class="on"></i></span></span>';
+      return '<span class="c' + (dk > key ? ' fut' : '') + (dk === key ? ' today' : '') + '"><b>' + day + '</b></span>';
+    }).join('');
+    var firstMonth = recs.length ? recs[0].date.slice(0, 7) : key.slice(0, 7);
+    html += '<div class="card"><div class="cal-head"><button type="button" data-cal-move="-1" aria-label="이전 달"' + (cm <= firstMonth ? ' disabled' : '') + '>‹</button>' +
+      '<div style="text-align:center"><div style="font-weight:900">' + cy + '년 ' + cmo + '월</div><div class="label">' + monthRecs + '일 기록</div></div>' +
+      '<button type="button" data-cal-move="1" aria-label="다음 달"' + (cm >= key.slice(0, 7) ? ' disabled' : '') + '>›</button></div>' +
+      '<div class="cal">' + ['일', '월', '화', '수', '목', '금', '토'].map(function (w) { return '<span class="dw">' + w + '</span>'; }).join('') + calCells + '</div></div>';
     // 하늘 도감
     var found = Object.keys(tl.skyCounts).length;
     html += '<div class="card"><div class="row-between"><div class="label">하늘 도감</div><div class="label">' + found + ' / ' + L.SKIES.length + '종</div></div><div class="dex">' +
       L.SKIES.map(function (k) {
         var n = tl.skyCounts[k.id] || 0;
         return n ? '<div class="it"><div class="sw" style="background:' + skyGrad(k) + '"></div><div class="nm">' + esc(k.name) + '</div><div class="ct">' + L.TIER_NAMES[k.tier] + ' · ' + n + '번</div></div>'
-                 : '<div class="it no"><div class="sw">?</div><div class="nm">' + (k.tier >= 2 ? '???' : esc(k.name)) + '</div><div class="ct">' + L.TIER_NAMES[k.tier] + '</div></div>';
-      }).join('') + '</div><p class="status-sub">목표 시각을 지킨 날, 연속 7일 이상일 때 드문 하늘이 더 잘 나와요. 칭호를 받는 날엔 드문 하늘 이상이 떠요.</p></div>';
+                 : '<div class="it no"><div class="sw">?</div><div class="nm">' + (k.tier >= 2 && !k.weather ? '???' : esc(k.name)) + '</div><div class="ct">' + (k.weather ? '날씨 하늘' : L.TIER_NAMES[k.tier]) + '</div></div>';
+      }).join('') + '</div><p class="status-sub">목표 시각을 지킨 날, 연속 7일 이상일 때 드문 하늘이 더 잘 나와요. 칭호를 받는 날엔 드문 하늘 이상이 떠요.' +
+      (weatherCfg() ? '' : ' 비·눈·천둥 하늘은 설정에서 <b>실제 날씨</b>를 켜면 만날 수 있어요.') + '</p></div>';
     // 칭호
     var nextT = null; L.MILESTONES.forEach(function (m) { if (!nextT && m.n > st.journeyDays) nextT = m; });
     html += '<div class="card"><div class="row-between"><div class="label">칭호</div><div class="label">' + (nextT ? '다음 \'' + esc(nextT.title) + '\'까지 ' + (nextT.n - st.journeyDays) + '일' : '모두 모았어요') + '</div></div><div class="titles">' +
@@ -1535,6 +1665,159 @@
     view.innerHTML = html;
   }
 
+  // ---------- 실제 날씨 (켠 사람만, Open-Meteo) ----------
+  // 위치는 고른 도시 또는 대략 위치(소수 첫째 자리, 약 10km)만 이 기기에 저장. 하루 시작을 누를 때 최근 날씨를 기록에 붙임.
+  function weatherCfg() { var w = Local.get(K.weather); return w && w.on && typeof w.lat === 'number' && typeof w.lon === 'number' ? w : null; }
+  var wxFetching = null;
+  function fetchWeather(force) {
+    var w = weatherCfg(); if (!w || !/^https?:$/.test(location.protocol)) return Promise.resolve(null);
+    var c = Local.get(K.wxCache), now = Date.now();
+    if (!force && c && c.lat === w.lat && c.lon === w.lon && now - c.at < 30 * 60000) return Promise.resolve(c);
+    if (wxFetching) return wxFetching;
+    var ctl = window.AbortController ? new AbortController() : null, t = setTimeout(function () { if (ctl) ctl.abort(); }, 5000);
+    wxFetching = fetch(L.weatherUrl(w.lat, w.lon), ctl ? { signal: ctl.signal } : {}).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+      var p = L.parseWeather(j); if (!p) return null;
+      var v = { at: Date.now(), key: L.toDateKey(realNow()), lat: w.lat, lon: w.lon, wx: p.wx, tc: p.tc };
+      Local.set(K.wxCache, v); return v;
+    }).catch(function () { return null; }).then(function (v) { clearTimeout(t); wxFetching = null; return v; });
+    return wxFetching;
+  }
+  // 누를 때 쓸 날씨: 같은 날, 3시간 안에 받은 것만
+  function weatherNow(now) {
+    var w = weatherCfg(), c = Local.get(K.wxCache);
+    if (!w || !c || c.key !== L.toDateKey(now) || Date.now() - c.at > 3 * 3600000) return null;
+    return { wx: c.wx, tc: c.tc };
+  }
+  function weatherLine(rec) {
+    if (!rec || rec.wx === null || rec.wx === undefined) return '';
+    var w = Local.get(K.weather) || {}, name = L.weatherName(rec.wx), fam = L.weatherFamily(rec.wx);
+    return (w.name ? esc(w.name) + ' ' : '') + (rec.tc !== null && rec.tc !== undefined ? rec.tc + '° · ' : '') + name +
+      (fam === 'rain' || fam === 'snow' || fam === 'storm' ? ' · 궂은 날에도 시작했어요' : '');
+  }
+
+  function weatherSectionHtml() {
+    var w = Local.get(K.weather) || {};
+    return '<label class="check"><input type="checkbox" id="wxOn"' + (w.on ? ' checked' : '') + '> <span>하루를 시작한 순간의 날씨가 오늘 하늘에 반영돼요 (비·눈·안개·천둥)</span></label>' +
+      '<div class="field" id="wxPick"' + (w.on ? '' : ' hidden') + '><label for="wxCity">지역</label><select id="wxCity">' +
+        '<option value="">지역을 골라 주세요</option>' + L.CITIES.map(function (c) { return '<option value="' + esc(c.name) + '"' + (w.name === c.name ? ' selected' : '') + '>' + esc(c.name) + '</option>'; }).join('') +
+        '<option value="__here"' + (w.name === '현재 위치' ? ' selected' : '') + '>현재 위치 (대략)</option></select></div>' +
+      '<p class="hint-small">날씨를 가져올 때 대략적인 위치가 날씨 서비스(Open-Meteo)로 가요. 위치는 이 기기에만 저장돼요.</p>';
+  }
+  function bindWeatherSection(el) {
+    var on = el.querySelector('#wxOn'), sel = el.querySelector('#wxCity'), pick = el.querySelector('#wxPick');
+    if (!on) return;
+    var save = function (v) { Local.set(K.weather, v); Local.del(K.wxCache); if (v.on && typeof v.lat === 'number') fetchWeather(true).then(function (c) { if (c) toast('지금 ' + (v.name || '') + ' ' + c.tc + '° · ' + L.weatherName(c.wx)); }); };
+    on.addEventListener('change', function () {
+      pick.hidden = !on.checked;
+      var w = Local.get(K.weather) || {}; w.on = on.checked; save(w);
+      if (on.checked && typeof w.lat !== 'number') sel.focus();
+    });
+    sel.addEventListener('change', function () {
+      if (sel.value === '__here') {
+        if (!navigator.geolocation) { toast('이 브라우저는 위치를 쓸 수 없어요. 지역을 골라 주세요.'); sel.value = ''; return; }
+        navigator.geolocation.getCurrentPosition(function (pos) {
+          save({ on: true, name: '현재 위치', lat: Math.round(pos.coords.latitude * 10) / 10, lon: Math.round(pos.coords.longitude * 10) / 10 });
+        }, function () { toast('위치를 가져오지 못했어요. 지역을 골라 주세요.'); sel.value = ''; }, { timeout: 8000, maximumAge: 3600000 });
+        return;
+      }
+      var c = L.CITIES.filter(function (x) { return x.name === sel.value; })[0];
+      if (c) save({ on: true, name: c.name, lat: c.lat, lon: c.lon });
+    });
+  }
+
+  // ---------- 푸시 알림 (켠 사람만) ----------
+  function pushEnv() {
+    if (!Server.on || ENV.framed || !('serviceWorker' in navigator) || !('Notification' in window)) return 'none';
+    if (ENV.ios && !ENV.standalone) return 'ios-browser';
+    if (!('PushManager' in window)) return 'none';
+    if (!has('push') || !state.vapid) return 'none';
+    return Notification.permission === 'denied' ? 'denied' : 'ok';
+  }
+  function b64ToBytes(b) { var p = '='.repeat((4 - b.length % 4) % 4), raw = atob((b + p).replace(/-/g, '+').replace(/_/g, '/')), out = new Uint8Array(raw.length); for (var i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i); return out; }
+  function pushPrefs(p) {
+    var s = state.settings;
+    return { morning: !!p.morning, bedtime: !!p.bedtime, weekdaysOnly: !!p.weekdaysOnly, baselineMin: s.baselineMin, targetMin: s.targetMin, planStart: s.planStart, sleepH: s.sleepNeedH };
+  }
+  function swReg() { return navigator.serviceWorker.ready; }
+  // 켜기·설정 바꾸기 (권한 요청은 버튼 누른 순간에)
+  function enablePush(p) {
+    if (pushEnv() !== 'ok') return Promise.reject(new Error(pushEnv()));
+    return Notification.requestPermission().then(function (perm) {
+      if (perm !== 'granted') throw new Error('denied');
+      return swReg();
+    }).then(function (reg) {
+      return reg.pushManager.getSubscription().then(function (sub) {
+        return sub || reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(state.vapid) });
+      });
+    }).then(function (sub) {
+      var j = sub.toJSON();
+      return Server.rpc('save_push', { p_anon: anonId, p_sub: j, p_prefs: pushPrefs(p) }).then(function (res) {
+        if (!res || res.error) throw new Error(res && res.error || 'fail');
+        Local.set(K.push, { endpoint: j.endpoint, morning: !!p.morning, bedtime: !!p.bedtime, weekdaysOnly: !!p.weekdaysOnly });
+        return true;
+      });
+    });
+  }
+  function updatePushPrefs() {
+    var cur = Local.get(K.push);
+    if (!cur || !Server.on || !('serviceWorker' in navigator) || !state.settings) return Promise.resolve();
+    return swReg().then(function (reg) { return reg.pushManager.getSubscription(); }).then(function (sub) {
+      if (!sub) { Local.del(K.push); return; }   // 권한을 끄면 구독이 사라짐
+      var j = sub.toJSON();
+      if (j.endpoint !== cur.endpoint) { cur.endpoint = j.endpoint; Local.set(K.push, cur); }
+      return Server.rpc('save_push', { p_anon: anonId, p_sub: j, p_prefs: pushPrefs(cur) });
+    }).catch(function () {});
+  }
+  function disablePush() {
+    var cur = Local.get(K.push); Local.del(K.push);
+    if (!('serviceWorker' in navigator)) return Promise.resolve();
+    return swReg().then(function (reg) { return reg.pushManager.getSubscription(); }).then(function (sub) {
+      var ep = (sub && sub.endpoint) || (cur && cur.endpoint);
+      var jobs = [];
+      if (ep) jobs.push(Server.rpc('delete_push', { p_anon: anonId, p_endpoint: ep }).catch(function () {}));
+      if (sub) jobs.push(sub.unsubscribe().catch(function () {}));
+      return Promise.all(jobs);
+    }).catch(function () {});
+  }
+  function testPush() {
+    var cur = Local.get(K.push); if (!cur) return Promise.reject(new Error('off'));
+    var base = (window.GACHI_CONFIG || {}).supabaseUrl;
+    return fetch(String(base).replace(/\/$/, '') + '/functions/v1/send-reminders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: 'test', anon: anonId, endpoint: cur.endpoint }) })
+      .then(function (r) { return r.json().catch(function () { return {}; }).then(function (j) { if (!r.ok || j.result !== 'ok') throw new Error(j.error || j.result || 'fail'); return true; }); });
+  }
+  var PUSH_ERR = { denied: '알림이 꺼져 있어요. 휴대폰 설정에서 이 앱(또는 브라우저)의 알림을 허용해 주세요.', 'ios-browser': '아이폰은 홈 화면에 추가한 앱에서만 알림을 받을 수 있어요.', too_many: '알림은 기기 5대까지 켤 수 있어요.', wait_or_not_found: '조금 뒤에 다시 눌러 주세요.', gone: '이 기기의 알림 연결이 끊겼어요. 알림을 껐다 다시 켜 주세요.' };
+  function pushErr(e) { var m = e && e.message; return PUSH_ERR[m] || '알림을 켜지 못했어요. 잠시 후 다시 시도해 주세요.'; }
+  function pushSectionHtml() {
+    var env = pushEnv(), cur = Local.get(K.push) || {};
+    if (env === 'none') return '';
+    if (env === 'ios-browser') return '<div class="note">아이폰은 <b>홈 화면에 추가한 앱</b>에서 아침 알림을 켤 수 있어요. 지금은 캘린더 알림을 써 보세요.</div>';
+    if (env === 'denied') return '<div class="note">알림이 꺼져 있어요. 휴대폰 설정에서 이 앱의 알림을 허용하면 여기서 켤 수 있어요.</div>';
+    return '<div id="pushBox"><label class="check"><input type="checkbox" id="pushMorning"' + (cur.morning ? ' checked' : '') + '> <span>아침 알림 · 목표 시각에 (이미 시작했으면 안 와요)</span></label>' +
+      '<label class="check"><input type="checkbox" id="pushBed"' + (cur.bedtime ? ' checked' : '') + '> <span>잘 시간 알림 · 취침 권장 30분 전</span></label>' +
+      '<label class="check"><input type="checkbox" id="pushWeekday"' + (cur.weekdaysOnly ? ' checked' : '') + '> <span>평일만 (주말엔 쉬기)</span></label>' +
+      (cur.endpoint ? '<div class="center"><button type="button" class="link-btn quiet" id="pushTest">테스트 알림 보내기</button></div>' : '') + '</div>';
+  }
+  function bindPushSection(el, after) {
+    var box = el.querySelector('#pushBox'); if (!box) return;
+    var read = function () { return { morning: box.querySelector('#pushMorning').checked, bedtime: box.querySelector('#pushBed').checked, weekdaysOnly: box.querySelector('#pushWeekday').checked }; };
+    box.querySelectorAll('input').forEach(function (inp) {
+      inp.addEventListener('change', function () {
+        var p = read(), was = !!Local.get(K.push);
+        box.querySelectorAll('input').forEach(function (x) { x.disabled = true; });
+        var job = (!p.morning && !p.bedtime) ? disablePush().then(function () { toast('알림을 껐어요.'); })
+          : enablePush(p).then(function () { toast(was ? '알림 설정을 바꿨어요.' : '알림을 켰어요. 테스트 알림으로 확인해 보세요.'); });
+        job.catch(function (e) { toast(pushErr(e)); if (!was) inp.checked = false; })
+          .then(function () { box.querySelectorAll('input').forEach(function (x) { x.disabled = false; }); if (after) after(); });
+      });
+    });
+    var t = box.querySelector('#pushTest');
+    if (t) t.addEventListener('click', function () {
+      t.disabled = true;
+      testPush().then(function () { toast('테스트 알림을 보냈어요. 몇 초 안에 와요.'); }, function (e) { toast(pushErr(e)); })
+        .then(function () { setTimeout(function () { t.disabled = false; }, 3000); });
+    });
+  }
+
   // ---------- 알림·설치 안내 ----------
   var UA = navigator.userAgent || '';
   var ENV = {
@@ -1557,7 +1840,7 @@
         '<div class="row-actions">' + (ENV.kakao ? '<button type="button" class="primary" data-open-external>Safari·Chrome으로 열기</button>' : '<button type="button" class="ghost" data-copy-url>주소 복사</button>') + '</div></section>';
     }
     var rem = Local.get(K.reminder), sig = L.reminderSig(s);
-    if ((!rem || rem.sig !== sig) && (phase !== 'open' || rec)) {
+    if ((!rem || rem.sig !== sig) && !Local.get(K.push) && (phase !== 'open' || rec)) {
       html += '<section class="card action"><div><div class="label">' + (rem ? '목표가 바뀌었어요' : (phase === 'before' ? '오늘 아침을 위해' : '내일 아침을 위해')) + '</div><div class="action-text">' + (rem ? '알림 다시 맞추기' : '아침 알림 맞추기') + '</div></div>' +
         '<button type="button" class="ghost" data-reminder>맞추기</button></section>';
     }
@@ -1599,12 +1882,15 @@
     var el = document.getElementById('sheetBody');
     el.innerHTML = '<h2 id="sheetTitle">아침 알림 맞추기</h2><p class="lead">목표 시각에 캘린더 알림이 와요. 깨우는 알람이 아니라, 일어난 뒤 \'하루 시작하기\'를 잊지 않게 알려 주는 알림이에요.</p>' +
       '<div class="note">' + when + '</div>' +
-      '<div class="btn-col"><button type="button" class="primary" id="icsBtn">아이폰·맥 캘린더에 추가</button>' +
+      (pushEnv() === 'ok' ? '<div class="section-label">푸시 알림 (추천)</div>' + pushSectionHtml().replace('<div id="pushBox">', '<div id="pushBox" class="note">') + '<div class="section-label">또는 캘린더 알림</div>' :
+        pushEnv() === 'ios-browser' ? '<p class="hint-small">홈 화면에 추가한 앱에서는 푸시 알림도 켤 수 있어요.</p>' : '') +
+      '<div class="btn-col"><button type="button" class="' + (pushEnv() === 'ok' ? 'secondary' : 'primary') + '" id="icsBtn">아이폰·맥 캘린더에 추가</button>' +
       '<a class="secondary" id="gcalBtn" href="' + esc(L.googleReminderUrl(s, from, siteUrl())) + '" target="_blank" rel="noopener">구글 캘린더에 추가</a></div>' +
       '<p class="hint-small">구글 캘린더는 첫 목표 시각으로 매일 반복돼요' + (stages.length > 1 ? ' (단계 목표가 바뀌면 다시 추가해 주세요)' : '') + '. 목표를 바꾸면 예전 알림은 캘린더에서 지워 주세요.</p>' +
       '<button type="button" class="close-btn" id="closeSheet">닫기</button>';
     document.getElementById('sheet').hidden = false;
     var done = function () { Local.set(K.reminder, { sig: L.reminderSig(s), at: L.toDateKey(now) }); };
+    bindPushSection(el, function () { if (Local.get(K.push)) done(); });
     el.querySelector('#closeSheet').addEventListener('click', function () { closeSheet(); render(); });
     el.querySelector('#gcalBtn').addEventListener('click', function () { done(); setTimeout(function () { closeSheet(); render(); }, 300); });
     el.querySelector('#icsBtn').addEventListener('click', function () {
@@ -1707,7 +1993,36 @@
       } else save();
     });
   }
+  // 잘못 누른 기록 취소: 누른 지 5분 안, 두 번 눌러야
+  function canUndo(rec) {
+    if (!rec || state.trial) return false;
+    var t = Date.parse(String(rec.wokeAt || '').replace(/(\.\d+)?$/, ''));
+    return !isNaN(t) && realNow().getTime() - t < 5 * 60000 && rec.date === L.toDateKey(realNow());
+  }
+  function undoToday(btn) {
+    var key = L.toDateKey(realNow()), rec = L.findDay(state.records, key);
+    if (!canUndo(rec)) { toast('누른 지 5분이 지나서 취소할 수 없어요.'); render(); return; }
+    if (!btn.dataset.armed) { btn.dataset.armed = '1'; btn.textContent = '한 번 더 누르면 오늘 기록을 취소해요'; return; }
+    state.records = state.records.filter(function (r) { return r.date !== key; });
+    Local.set(K.records, state.records);
+    Local.set(K.pending, (Local.get(K.pending) || []).filter(function (d) { return d !== key; }));
+    Local.set(K.pendingRoom, (Local.get(K.pendingRoom) || []).filter(function (d) { return d !== key; }));
+    if (Cloud.db) Cloud.col().doc(rec.id).delete().catch(function () {});
+    if (Server.on) Server.rpc('undo_start', { p_anon: anonId, p_day: key }).then(function () { refreshCrowd(); refreshRoom(); }).catch(function () {});
+    saveAccountSoon(); state.justStarted = null; render();
+    toast('오늘 기록을 취소했어요. 준비되면 다시 눌러 주세요.');
+  }
   view.addEventListener('click', function (e) {
+    var ub = e.target.closest('[data-undo]'); if (ub) return undoToday(ub);
+    var mb2 = e.target.closest('[data-mood]');
+    if (mb2) {
+      var key = L.toDateKey(realNow()), cur = L.findDay(state.records, key), v = +mb2.dataset.mood;
+      if (!cur) return;
+      state.records = L.setMood(state.records, key, cur.mood === v ? null : v);
+      Local.set(K.records, state.records); Cloud.save(cur.id, L.findDay(state.records, key)); saveAccountSoon();
+      view.querySelectorAll('[data-mood]').forEach(function (b) { b.setAttribute('aria-pressed', String(cur.mood !== v && +b.dataset.mood === v)); });
+      return;
+    }
     if (e.target.closest('[data-share-image]')) openShareImage();
     if (e.target.closest('[data-replay]')) { primeAudio(); playCeremony(ceremonyInfo(effectiveNow()), true); }
   });
@@ -1726,6 +2041,8 @@
     else if (r.diff !== null && r.diff >= 10) msg.push('평균이 ' + r.diff + '분 늦어졌어요. 이번 주는 목표 시각에 한 번 맞춰 봐요.');
     if (r.wobble !== null && r.wobble <= 15) msg.push('흔들림 ±' + r.wobble + '분, 아주 규칙적이에요.');
     if (r.rests) msg.push('보호권 ' + r.rests + '개가 연속 기록을 지켜 줬어요.');
+    if (r.moods['3'] && r.moods['1']) msg.push('개운했던 날은 평균 ' + L.formatMinute(r.moods['3'].avg) + ', 피곤했던 날은 ' + L.formatMinute(r.moods['1'].avg) + '에 시작했어요.');
+    else if (r.moods['3']) msg.push('개운했던 날 ' + r.moods['3'].n + '일 · 평균 ' + L.formatMinute(r.moods['3'].avg) + '에 시작했어요.');
     if (!msg.length) msg.push('한 주에 ' + r.days + '번이라도 기록한 게 시작이에요. 이번 주엔 하루만 더 늘려 봐요.');
     var el = document.getElementById('sheetBody');
     el.innerHTML = '<h2 id="sheetTitle">지난주 리포트</h2><p class="lead">' + recapRange(r) + ' · 월요일부터 일요일까지</p>' +
@@ -1740,7 +2057,24 @@
     el.querySelector('#closeSheet').addEventListener('click', function () { closeSheet(); render(); });
     el.querySelector('h2').setAttribute('tabindex', '-1'); el.querySelector('h2').focus();
   }
-  view.addEventListener('click', function (e) { if (e.target.closest('[data-recap]')) openRecap(); });
+  view.addEventListener('click', function (e) {
+    if (e.target.closest('[data-recap]')) return openRecap();
+    var mv = e.target.closest('[data-cal-move]');
+    if (mv) {
+      var cur = state.calMonth || L.toDateKey(effectiveNow()).slice(0, 7), y = +cur.slice(0, 4), m = +cur.slice(5, 7) + Number(mv.dataset.calMove);
+      if (m < 1) { m = 12; y--; } if (m > 12) { m = 1; y++; }
+      state.calMonth = y + '-' + (m < 10 ? '0' : '') + m; state.quiet = true; var sy = window.scrollY; render(); state.quiet = false; window.scrollTo(0, sy); return;
+    }
+    var cd = e.target.closest('[data-cal]');
+    if (cd) {
+      var dk = cd.dataset.cal, r = L.findDay(currentRecords(), dk), di = L.dayInfo(journey(), dk);
+      if (r && di) {
+        var ev = L.evaluate(r), mood = L.MOODS.filter(function (x) { return x.v === r.mood; })[0];
+        toast(Number(dk.slice(5, 7)) + '/' + Number(dk.slice(8)) + ' ' + L.formatMinute(r.minuteOfDay) + ' · ' + L.skyById(di.sky).name +
+          ({ hit: ' · 목표 달성', close: ' · 조금 늦음', late: ' · 늦음' }[ev.status] || '') + (r.wx !== null && r.wx !== undefined ? ' · ' + L.weatherName(r.wx) + (r.tc !== null ? ' ' + r.tc + '°' : '') : '') + (mood ? ' · ' + mood.label : ''));
+      }
+    }
+  });
 
   // ---------- 불 켜기 연출 ----------
   // 순서: 창문 점등 → 밤하늘이 오늘 하늘로 → 해가 떠오름 → 시각 → 오늘의 하늘 카드 → 연속·여정 → 칭호·보호권 소식
@@ -1785,6 +2119,7 @@
     var badge = info.ev.status === 'hit' ? '<span class="badge hit">' + CHECK + '목표 달성</span>' : info.ev.status === 'close' ? '<span class="badge close">조금 늦었지만 시작</span>' : info.ev.status === 'late' ? '<span class="badge late">늦어도 시작한 게 중요해요</span>' : '';
     var lines = [];
     if (di.n === 1) lines.push('<span class="ms">첫 창문에 불이 켜졌어요</span>');
+    var wl = weatherLine(info.rec); if (wl) lines.push(wl);
     if (di.milestone) lines.push('<span class="ms">' + di.n + '일째 · 칭호 \'' + esc(di.milestone.title) + '\'</span>');
     if (di.shieldEarned) lines.push('보호권을 1개 받았어요. 하루 빠져도 연속 기록이 이어져요');
     var yday = L.addDays(info.key, -1);
@@ -1851,7 +2186,11 @@
     if (tier >= 1) for (i = 0; i < 2 + tier; i++) birds.push({ x: -30 - i * 46 - R() * 30, y: H * (0.08 + R() * 0.2), s: 0.7 + R() * 0.5, v: 36 + R() * 22, ph: R() * 6.3 });
     var starry = k.fx === 'stars' || k.fx === 'meteor' || k.fx === 'aurora' || tier >= 3;
     if (starry) for (i = 0; i < 50; i++) stars.push({ x: R() * W, y: R() * H * 0.45, r: 0.5 + R() * 1.2, ph: R() * 6.3 });
-    if (k.fx === 'clouds' || k.fx === 'mist') for (i = 0; i < 5; i++) clouds.push({ x: R() * W, y: H * (0.1 + R() * 0.3), w: 80 + R() * 120, v: 4 + R() * 8 });
+    if (k.fx === 'clouds' || k.fx === 'mist' || k.fx === 'rain' || k.fx === 'storm') for (i = 0; i < (k.fx === 'clouds' || k.fx === 'mist' ? 5 : 8); i++) clouds.push({ x: R() * W, y: H * (0.05 + R() * 0.3), w: 90 + R() * 140, v: 4 + R() * 8 });
+    var drops = [], flakes = [];
+    if (k.fx === 'rain' || k.fx === 'storm') for (i = 0; i < 90; i++) drops.push({ x: R() * W, y: R() * H, v: 420 + R() * 260, l: 10 + R() * 12 });
+    if (k.fx === 'snow') for (i = 0; i < 80; i++) flakes.push({ x: R() * W, y: R() * H, r: 1 + R() * 2.6, v: 22 + R() * 40, ph: R() * 6.3 });
+    var nextBolt = k.fx === 'storm' ? 1.6 : 1e9, boltAt = -10;
     var nextMeteor = (tier >= 3 || k.fx === 'meteor') ? 1.2 : 1e9;
     var light = function (a) { return 'rgba(255,236,190,' + a + ')'; };
     function frame(now) {
@@ -1878,6 +2217,11 @@
       if (k.fx === 'halo' && sky > 0) { g.strokeStyle = 'rgba(255,255,235,' + (0.45 * sky) + ')'; g.lineWidth = 3; g.beginPath(); g.arc(sunX, sunY, 110 + Math.sin(t) * 3, 0, 6.3); g.stroke(); }
       // 구름·안개
       clouds.forEach(function (c) { c.x += c.v * dt; if (c.x - c.w > W) c.x = -c.w; var cg = g.createRadialGradient(c.x, c.y, 2, c.x, c.y, c.w / 2); cg.addColorStop(0, 'rgba(255,255,255,' + (0.22 * sky) + ')'); cg.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = cg; g.beginPath(); g.ellipse(c.x, c.y, c.w / 2, c.w / 7, 0, 0, 6.3); g.fill(); });
+      // 비·눈·번개
+      if (drops.length) { g.strokeStyle = 'rgba(205,220,240,' + (0.35 + 0.2 * sky) + ')'; g.lineWidth = 1.2; g.beginPath(); drops.forEach(function (dr) { dr.y += dr.v * dt; dr.x -= dr.v * dt * 0.18; if (dr.y > H) { dr.y = -20; dr.x = R() * W * 1.2; } g.moveTo(dr.x, dr.y); g.lineTo(dr.x - dr.l * 0.18, dr.y + dr.l); }); g.stroke(); }
+      flakes.forEach(function (f) { f.y += f.v * dt; f.x += Math.sin(t + f.ph) * 12 * dt; if (f.y > H) { f.y = -5; f.x = R() * W; } g.fillStyle = 'rgba(255,255,255,.85)'; g.beginPath(); g.arc(f.x, f.y, f.r, 0, 6.3); g.fill(); });
+      if (t > nextBolt) { boltAt = t; nextBolt = t + 2.5 + R() * 3; }
+      if (t - boltAt < 0.25) { g.fillStyle = 'rgba(235,230,255,' + (0.45 * (1 - (t - boltAt) / 0.25)) + ')'; g.fillRect(0, 0, W, H); }
       // 떠오르는 빛
       motes.forEach(function (m) {
         if (t < 0.5 + m.d) return;
@@ -1933,7 +2277,7 @@
         if (rt.ok) playCeremony(ceremonyInfo(now));
         return;
       }
-      var r = L.createStartRecord(state.records, now, state.settings);
+      var r = L.createStartRecord(state.records, now, state.settings, weatherNow(now));
       if (!r.ok) { toast(r.reason === 'too-early' ? '새벽 4시부터 시작할 수 있어요.' : '오늘 기록은 마감됐어요.'); return render(); }
       state.records = r.records;
       render();
@@ -2077,8 +2421,11 @@
       '<div class="section-label">일어나서 바로 할 한 가지</div>' + actionPicker(m) +
       '<div class="section-label">나이대</div>' + agePicker(m) + '<div class="err" id="setErr" role="alert"></div>' +
       '<button type="button" class="primary" id="saveSettings" style="width:100%">저장</button>' +
+      '<p class="hint-small" style="text-align:center;margin:8px 0 0">위 목표는 저장을 눌러야 바뀌고, 아래 설정은 바꾸면 바로 적용돼요.</p>' +
       '<div class="section-label">불 켤 때</div><label class="check"><input type="checkbox" id="soundToggle"' + (soundOn() ? ' checked' : '') + '> 효과음 (작은 종소리)</label>' +
-      '<div class="section-label">아침 알림</div><button type="button" class="secondary" id="setReminder" style="width:100%;min-height:48px">캘린더에 아침 알림 추가</button>' +
+      '<div class="section-label">알림</div>' + pushSectionHtml() +
+      '<button type="button" class="secondary" id="setReminder" style="width:100%;min-height:48px;margin-top:6px">캘린더에 아침 알림 추가</button>' +
+      '<div class="section-label">실제 날씨로 하늘 보기</div>' + weatherSectionHtml() +
       '<div class="section-label">내 기록</div><button type="button" class="secondary" id="exportCsv" style="width:100%;min-height:48px">기록 내보내기 (엑셀·CSV)</button>' +
       '<button type="button" class="danger" id="clearAll">이 기기의 기록 모두 지우기</button>' +
       (has('erase') ? '<button type="button" class="danger" id="eraseServer">서버에 있는 내 기록 지우기</button><p class="hint-small">모든 방에서 나가고, 방 친구에게 보이던 기록과 전체 창문 기록을 지워요. 이 기기의 기록과 계정은 그대로예요.</p>' : '') +
@@ -2100,6 +2447,7 @@
       saveSettings(made.settings); closeSheet(); render(); toast('저장했어요.');
     });
     el.querySelector('#setReminder').addEventListener('click', openReminder);
+    bindPushSection(el); bindWeatherSection(el);
     el.querySelector('#soundToggle').addEventListener('change', function (e) { Local.set(K.sound, !!e.target.checked); if (e.target.checked) { primeAudio(); chime(1, false); } });
     if (el.querySelector('#sendFeedback')) el.querySelector('#sendFeedback').addEventListener('click', openFeedback);
     if (el.querySelector('#eraseServer')) el.querySelector('#eraseServer').addEventListener('click', function (e) {
@@ -2109,6 +2457,7 @@
       Server.rpc('delete_my_data', { p_anon: anonId }).then(function (res) {
         if (!res || !res.ok) throw new Error('fail');
         state.rooms = []; state.roomData = {}; saveRooms(); setView('all'); Local.del(K.pendingRoom);
+        disablePush();
         closeSheet(); render(); toast('서버에 있는 내 기록을 지웠어요. 방에서도 모두 나갔어요.');
       }).catch(function () { btn.disabled = false; toast('연결이 불안정해요. 잠시 후 다시 시도해 주세요.'); });
     });
@@ -2367,7 +2716,14 @@
         if (state.view === code) setView('all');
         toast("'" + room.name + "' 방에서 나가게 됐어요."); render(); return;
       }
-      state.roomData[code] = { view: v, at: Date.now(), error: false };
+      var prev = state.roomData[code] && state.roomData[code].view, prevDay = state.roomData[code] && state.roomData[code].day;
+      if (prev && prevDay === key && state.tab === 'today' && state.view === code && document.visibilityState !== 'hidden') {
+        var was = {}; prev.members.forEach(function (m) { if (m.key) was[m.key] = Number.isInteger(m.start_min); });
+        var lit = v.members.filter(function (m) { return !m.me && m.key && Number.isInteger(m.start_min) && m.start_min >= 0 && was[m.key] === false; });
+        if (lit.length === 1) toast(L.sanitizeName(String(lit[0].nickname || ''), 10) + ' 님이 불을 켰어요 · ' + L.formatMinute(lit[0].start_min));
+        else if (lit.length > 1) toast(lit.length + '명이 방금 불을 켰어요');
+      }
+      state.roomData[code] = { view: v, at: Date.now(), error: false, day: key };
       if (v.name && v.name !== room.name) { room.name = v.name; saveRooms(); }
     }).catch(function () {
       state.roomData[code] = { view: (state.roomData[code] || {}).view || null, at: Date.now(), error: true };
@@ -2791,7 +3147,17 @@
     document.getElementById('ob').hidden = false;
     renderOnboarding();
   }
+  (function shortcuts() {
+    var q = location.search;
+    if (/[?&]tab=habit\b/.test(q) && state.settings) state.tab = 'habit';
+    if (/[?&](start=1|from=push)\b/.test(q)) state.wantStart = true;
+    if (/[?&](tab|start|from)=/.test(q) && !/[?&]room=/.test(q)) { try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {} }
+  })();
   render();
+  if (state.wantStart) {
+    var sb = document.getElementById('startBtn');
+    if (sb) { sb.scrollIntoView({ block: 'center' }); sb.classList.add('nudge'); setTimeout(function () { sb.classList.remove('nudge'); }, 3000); }
+  }
   checkInvite();
 
   var lastKey = L.toDateKey(effectiveNow());
@@ -2806,15 +3172,16 @@
     }
   }, 4000);
   if (Server.on) {
-    refreshCrowd(); syncPending(); syncRoomStarts(); syncProfile();
+    refreshCrowd(); syncPending(); syncRoomStarts(); syncProfile(); fetchWeather();
     Server.rpc('app_info', {}).then(function (i) {
       if (i && Array.isArray(i.features)) state.features = i.features.filter(function (f) { return typeof f === 'string'; });
-      flushErrors(); syncRests();
+      if (i && typeof i.vapid === 'string' && /^[A-Za-z0-9_-]{80,100}$/.test(i.vapid)) state.vapid = i.vapid;
+      flushErrors(); syncRests(); updatePushPrefs();
     }).catch(function () {});
     setInterval(function () { if (document.visibilityState !== 'hidden') refreshCrowd(); }, 30000);
     document.addEventListener('visibilitychange', function () {
       if (document.visibilityState !== 'visible') return;
-      refreshCrowd(); syncPending(); syncRoomStarts();
+      refreshCrowd(); syncPending(); syncRoomStarts(); fetchWeather();
       if (state.tab === 'today' && currentRoom()) refreshRoom();
     });
     setInterval(function () { if (state.tab === 'today' && currentRoom() && document.visibilityState !== 'hidden') refreshRoom(); }, 20000);

@@ -85,6 +85,19 @@ insert into public.room_bans (room_code, anon_id) values ('방코드', '찾은 a
 
 ---
 
+## 2-1. 푸시 알림 상태
+
+```sql
+-- 알림을 켠 기기 수와 종류
+select count(*) as 기기, count(*) filter (where morning) as 아침, count(*) filter (where bedtime) as 잘시간, count(*) filter (where weekdays_only) as 평일만
+from private.push_subs;
+-- 최근 발송 결과 (5분마다 실행, 응답은 몇 시간 보관)
+select created, status_code, left(content::text, 120) from net._http_response order by id desc limit 10;
+-- 예약 작업
+select jobname, schedule, active from cron.job;
+```
+`results`에 `gone`이 보이면 그 기기가 알림 권한을 꺼서 구독이 자동으로 지워진 거예요.
+
 ## 3. 정리 작업 (개인정보 처리방침의 보유 기간)
 
 `supabase-cron.sql`을 실행했다면 매일 새벽 04:10에 자동으로 돌아요. 확인:

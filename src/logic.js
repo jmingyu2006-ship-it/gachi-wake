@@ -128,7 +128,10 @@
       id: r.id, date: r.date, wokeAt: r.wokeAt, minuteOfDay: r.minuteOfDay, cohort: r.cohort,
       dayTarget: isInt(r.dayTarget) ? r.dayTarget : null,
       actionDoneAt: r.actionDoneAt || null,
-      greetedAt: r.greetedAt || null
+      greetedAt: r.greetedAt || null,
+      wx: isInt(r.wx) && r.wx >= 0 && r.wx <= 99 ? r.wx : null,
+      tc: isInt(r.tc) && r.tc >= -60 && r.tc <= 60 ? r.tc : null,
+      mood: isInt(r.mood) && r.mood >= 1 && r.mood <= 3 ? r.mood : null
     };
   }
 
@@ -137,6 +140,8 @@
     var out = normalize(first);
     out.actionDoneAt = a.actionDoneAt || b.actionDoneAt || null;
     out.greetedAt = a.greetedAt || b.greetedAt || null;
+    if (out.wx === null) { var o = first === a ? b : a; if (isInt(o.wx)) { out.wx = o.wx; out.tc = isInt(o.tc) ? o.tc : null; } }
+    if (out.mood === null) out.mood = isInt(a.mood) ? a.mood : (isInt(b.mood) ? b.mood : null);
     if (out.dayTarget === null) out.dayTarget = isInt(a.dayTarget) ? a.dayTarget : (isInt(b.dayTarget) ? b.dayTarget : null);
     return out;
   }
@@ -157,7 +162,7 @@
     return null;
   }
 
-  function createStartRecord(records, now, settings) {
+  function createStartRecord(records, now, settings, extra) {
     var key = toDateKey(now);
     var existing = findDay(records, key);
     if (existing) return { ok: true, created: false, record: existing, records: records };
@@ -165,7 +170,8 @@
     if (phase !== 'open') return { ok: false, reason: phase === 'before' ? 'too-early' : 'too-late', records: records };
     var rec = {
       id: 'w-' + key, date: key, wokeAt: toLocalISO(now), minuteOfDay: min, cohort: cohortOf(min),
-      dayTarget: settings ? planTargetFor(settings, key) : null, actionDoneAt: null, greetedAt: null
+      dayTarget: settings ? planTargetFor(settings, key) : null, actionDoneAt: null, greetedAt: null,
+      wx: extra && isInt(extra.wx) ? extra.wx : null, tc: extra && isInt(extra.tc) ? extra.tc : null, mood: null
     };
     return { ok: true, created: true, record: rec, records: cleanRecords(records.concat([rec])) };
   }
@@ -313,7 +319,11 @@
     { id: 'stars', name: '별이 남은 새벽', tier: 2, top: '#0C1230', mid: '#3A3E79', bot: '#EFA67A', sun: '#FFD9B0', fx: 'stars' },
     { id: 'halo', name: '햇무리', tier: 2, top: '#1E3C69', mid: '#76ADDF', bot: '#FFF2D0', sun: '#FFFBEA', fx: 'halo' },
     { id: 'aurora', name: '오로라 새벽', tier: 3, top: '#051224', mid: '#12495A', bot: '#EFB57A', sun: '#FFE2B8', fx: 'aurora' },
-    { id: 'meteor', name: '유성우 새벽', tier: 3, top: '#090E25', mid: '#2D2969', bot: '#E6997A', sun: '#FFD6C2', fx: 'meteor' }
+    { id: 'meteor', name: '유성우 새벽', tier: 3, top: '#090E25', mid: '#2D2969', bot: '#E6997A', sun: '#FFD6C2', fx: 'meteor' },
+    // 실제 날씨를 켰을 때만 나오는 하늘 (무작위 뽑기에는 안 들어감 → 예전 기록의 하늘은 그대로)
+    { id: 'rain', name: '비 오는 아침', tier: 0, top: '#1E2738', mid: '#46546E', bot: '#8C97A8', sun: '#C9D2DE', fx: 'rain', weather: true },
+    { id: 'snow', name: '눈 오는 아침', tier: 2, top: '#2B3550', mid: '#8A9BB8', bot: '#E8EEF6', sun: '#FFFFFF', fx: 'snow', weather: true },
+    { id: 'storm', name: '천둥 치는 아침', tier: 2, top: '#0E1220', mid: '#2E3550', bot: '#5B6380', sun: '#E8E0FF', fx: 'storm', weather: true }
   ];
   var SKY_BY_ID = {}; SKIES.forEach(function (k) { SKY_BY_ID[k.id] = k; });
   var TIER_NAMES = ['흔함', '가끔', '드묾', '아주 드묾'];
@@ -322,7 +332,7 @@
   function pickSky(rand, hit, streak, minTier) {
     var HIT = [1, 1.2, 1.6, 1.8], RUN = [1, 1, 1.3, 1.2], pool = [], sum = 0;
     SKIES.forEach(function (k) {
-      if (k.tier < (minTier || 0)) return;
+      if (k.weather || k.tier < (minTier || 0)) return;
       var w = TIER_W[k.tier] * (hit ? HIT[k.tier] : 1) * (streak >= 7 ? RUN[k.tier] : 1);
       pool.push([k.id, w]); sum += w;
     });
@@ -330,6 +340,66 @@
     for (var i = 0; i < pool.length; i++) { x -= pool[i][1]; if (x < 0) return pool[i][0]; }
     return pool[pool.length - 1][0];
   }
+  // WMO 날씨 코드 → 이름, 하늘 갈래
+  function weatherName(code) {
+    if (!isInt(code)) return '';
+    if (code === 0) return '맑음'; if (code <= 2) return '구름 조금'; if (code === 3) return '흐림';
+    if (code === 45 || code === 48) return '안개'; if (code >= 51 && code <= 57) return '이슬비';
+    if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return code >= 80 ? '소나기' : '비';
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86) return '눈';
+    if (code >= 95) return '뇌우';
+    return '';
+  }
+  function weatherFamily(code) {
+    if (!isInt(code)) return null;
+    if (code >= 95) return 'storm';
+    if ((code >= 71 && code <= 77) || code === 85 || code === 86) return 'snow';
+    if ((code >= 51 && code <= 67) || (code >= 80 && code <= 82)) return 'rain';
+    if (code === 45 || code === 48) return 'mist';
+    if (code === 3) return 'cloudy';
+    return null;   // 맑음·구름 조금: 평소처럼 하늘 뽑기
+  }
+  // 날씨가 뚜렷한 날은 그 하늘. 칭호 날(드묾 이상 보장)에 비가 오면 무지개, 흐림·안개면 드문 하늘 중에서
+  function skyForDay(rand, hit, streak, milestone, wx) {
+    var fam = weatherFamily(wx);
+    if (fam) {
+      var id = fam;
+      if (milestone && SKY_BY_ID[id].tier < 2) return fam === 'rain' ? 'rainbow' : pickSky(rand, hit, streak, 2);
+      if (fam === 'rain' && hit && rand() < 0.12) return 'rainbow';
+      return id;
+    }
+    return pickSky(rand, hit, streak, milestone ? 2 : 0);
+  }
+  var CITIES = [
+    { name: '서울', lat: 37.57, lon: 126.98 }, { name: '인천', lat: 37.46, lon: 126.71 }, { name: '수원', lat: 37.26, lon: 127.03 },
+    { name: '춘천', lat: 37.88, lon: 127.73 }, { name: '강릉', lat: 37.75, lon: 128.88 }, { name: '청주', lat: 36.64, lon: 127.49 },
+    { name: '대전', lat: 36.35, lon: 127.38 }, { name: '세종', lat: 36.48, lon: 127.29 }, { name: '전주', lat: 35.82, lon: 127.15 },
+    { name: '광주', lat: 35.16, lon: 126.85 }, { name: '대구', lat: 35.87, lon: 128.6 }, { name: '포항', lat: 36.02, lon: 129.34 },
+    { name: '울산', lat: 35.54, lon: 129.31 }, { name: '부산', lat: 35.18, lon: 129.08 }, { name: '창원', lat: 35.23, lon: 128.68 },
+    { name: '제주', lat: 33.5, lon: 126.53 }
+  ];
+  function weatherUrl(lat, lon) {
+    return 'https://api.open-meteo.com/v1/forecast?latitude=' + (Math.round(lat * 10) / 10) + '&longitude=' + (Math.round(lon * 10) / 10) +
+      '&current=temperature_2m,weather_code&timezone=Asia%2FSeoul';
+  }
+  function parseWeather(j) {
+    var c = j && j.current;
+    if (!c || !isInt(c.weather_code) || typeof c.temperature_2m !== 'number') return null;
+    return { wx: c.weather_code, tc: Math.round(c.temperature_2m) };
+  }
+  // 달력: 그 달의 칸(앞쪽 빈칸 포함, 일요일 시작)
+  function monthCells(year, month) {
+    var first = year + '-' + pad2(month) + '-01', lead = dayOfWeek(first), days = new Date(Date.UTC(year, month, 0)).getUTCDate(), out = [];
+    for (var i = 0; i < lead; i++) out.push(null);
+    for (var d = 1; d <= days; d++) out.push(year + '-' + pad2(month) + '-' + pad2(d));
+    return out;
+  }
+  var MOODS = [{ v: 1, label: '피곤해요' }, { v: 2, label: '그럭저럭' }, { v: 3, label: '개운해요' }];
+  function setMood(records, key, v) {
+    if (!(v === null || (isInt(v) && v >= 1 && v <= 3))) return records;
+    return cleanRecords(records).map(function (r) { if (r.date !== key) return r; var n = normalize(r); n.mood = v; return n; });
+  }
+
   var MILESTONES = [
     { n: 3, title: '새벽 탐험가' }, { n: 7, title: '일주일의 리듬' }, { n: 14, title: '아침의 단골' }, { n: 21, title: '습관의 씨앗' },
     { n: 30, title: '한 달의 빛' }, { n: 50, title: '반짝이는 건물' }, { n: 66, title: '습관 완성' }, { n: 100, title: '아침의 주인' }
@@ -356,7 +426,8 @@
       if (r) {
         n++; streak++;
         var ev = evaluate(r), hit = ev.status === 'hit', ms = MS_AT[n] || null;
-        var sky = n === 1 ? 'gold' : pickSky(mulberry32(hashString(seed + '|' + d)), hit, streak, ms ? 2 : 0);
+        var rnd = mulberry32(hashString(seed + '|' + d));
+        var sky = (n === 1 && !weatherFamily(r.wx)) ? 'gold' : skyForDay(rnd, hit, streak, !!ms, r.wx);
         var earned = false;
         if (n % SHIELD_EVERY === 0 && shields < MAX_SHIELDS) { shields++; earned = true; }
         out.days.push({ date: d, rec: true, n: n, streak: streak, sky: sky, hit: hit, milestone: ms, shieldEarned: earned });
@@ -394,7 +465,12 @@
       from: lastMon, to: addDays(lastMon, 6), days: w.length, prevDays: p.length,
       hits: w.filter(function (r) { return evaluate(r).status === 'hit'; }).length,
       avg: avg, prevAvg: pavg, diff: pavg === null ? null : avg - pavg, wobble: wob, skies: skies,
-      rests: tl.restDays.filter(function (d) { return d >= lastMon && d <= addDays(lastMon, 6); }).length
+      rests: tl.restDays.filter(function (d) { return d >= lastMon && d <= addDays(lastMon, 6); }).length,
+      moods: (function () {
+        var g = {}; w.forEach(function (r) { if (isInt(r.mood)) (g[r.mood] = g[r.mood] || []).push(r.minuteOfDay); });
+        var out = {}; Object.keys(g).forEach(function (k) { out[k] = { n: g[k].length, avg: Math.round(g[k].reduce(function (a, b) { return a + b; }, 0) / g[k].length) }; });
+        return out;
+      })()
     };
   }
 
@@ -643,6 +719,8 @@
     SKIES: SKIES, TIER_NAMES: TIER_NAMES, MILESTONES: MILESTONES, EFFECTS: EFFECTS, MAX_SHIELDS: MAX_SHIELDS,
     pickSky: pickSky, skyById: skyById, journeyTimeline: journeyTimeline, dayInfo: dayInfo, effectTier: effectTier, nextEffect: nextEffect,
     weekRecap: weekRecap, roomTogether: roomTogether, mulberry32: mulberry32,
+    weatherName: weatherName, weatherFamily: weatherFamily, skyForDay: skyForDay, CITIES: CITIES, weatherUrl: weatherUrl, parseWeather: parseWeather,
+    monthCells: monthCells, MOODS: MOODS, setMood: setMood,
     reminderStages: reminderStages, reminderIcs: reminderIcs, googleReminderUrl: googleReminderUrl, reminderSig: reminderSig,
     serverPayload: serverPayload, parseServerCounts: parseServerCounts, hashString: hashString
   };

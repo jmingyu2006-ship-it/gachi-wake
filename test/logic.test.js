@@ -388,7 +388,9 @@ test('연출 단계·다음 연출, 하늘 확률(목표 지킨 날이 더 드�
   const base = rate(false, 0), good = rate(true, 10);
   assert.ok(base > 0.15 && base < 0.21, '기본 드묾 이상 약 18%: ' + base);
   assert.ok(good > base + 0.08, '목표 지키고 연속이면 더 자주: ' + good);
-  assert.equal(L.SKIES.length, 12);
+  assert.equal(L.SKIES.length, 15);
+  assert.equal(L.SKIES.filter(k => k.weather).length, 3);
+  const r2 = L.mulberry32(3); for (let i = 0; i < 5000; i++) assert.ok(!L.skyById(L.pickSky(r2, true, 20, 0)).weather, '날씨 하늘은 뽑기에 안 나옴');
 });
 
 test('주간 리포트(지난 월~일)와 방 함께 켜기', () => {
@@ -409,4 +411,35 @@ test('주간 리포트(지난 월~일)와 방 함께 켜기', () => {
   // 11/3,11/4,11/5: 두 명(셋째는 11/8에 들어옴) 모두 켬 → 3일. 11/7은 쉬는 날(-1)이라 아님. 11/8은 셋 다 켬 → 4일
   assert.equal(t.weekAllDays, 4);
   assert.equal(L.roomTogether({ members: [view.members[0]] }, '2026-11-09', 431).allLitToday, false, '혼자면 축하 없음');
+});
+
+test('실제 날씨: 비·눈·뇌우·안개·흐림은 그 하늘, 맑으면 평소 뽑기, 칭호 날 비는 무지개, 기록에 저장', () => {
+  assert.deepEqual([0, 2, 3, 45, 53, 63, 81, 73, 86, 95, null].map(L.weatherFamily), [null, null, 'cloudy', 'mist', 'rain', 'rain', 'rain', 'snow', 'snow', 'storm', null]);
+  assert.deepEqual([0, 2, 3, 45, 53, 63, 81, 73, 95].map(L.weatherName), ['맑음', '구름 조금', '흐림', '안개', '이슬비', '비', '소나기', '눈', '뇌우']);
+  const r = () => 0.5;
+  assert.equal(L.skyForDay(r, false, 0, false, 63), 'rain');
+  assert.equal(L.skyForDay(r, false, 0, false, 73), 'snow');
+  assert.equal(L.skyForDay(r, false, 0, false, 95), 'storm');
+  assert.equal(L.skyForDay(r, false, 0, true, 63), 'rainbow', '칭호 날 비 → 무지개');
+  assert.ok(L.skyById(L.skyForDay(r, false, 0, true, 3)).tier >= 2, '칭호 날 흐림 → 드묾 이상');
+  assert.equal(L.skyForDay(() => 0.05, true, 0, false, 61), 'rainbow', '목표 지킨 비 오는 날 가끔 무지개');
+  // 기록: 날씨·기온 저장, 첫날도 비면 비
+  const s = L.makeSettings({ baselineMin: 440, targetMin: 420, sleepNeedH: 8, firstAction: '물' }, '2026-11-01').settings;
+  let recs = L.createStartRecord([], new Date('2026-11-09T07:05:00+09:00'), s, { wx: 63, tc: 7 }).records;
+  assert.equal(recs[0].wx, 63); assert.equal(recs[0].tc, 7);
+  assert.ok(['rain', 'rainbow'].includes(L.journeyTimeline(recs, '2026-11-09').days[0].sky), '첫날이어도 비 오면 비(가끔 무지개)');
+  assert.equal(L.cleanRecords([{ ...recs[0], wx: 300, tc: 99 }])[0].wx, null, '이상한 값은 버림');
+  // 기분 저장, 주간 리포트 기분별 평균
+  recs = L.setMood(recs, '2026-11-09', 3);
+  assert.equal(recs[0].mood, 3);
+  assert.equal(L.setMood(recs, '2026-11-09', 9)[0].mood, 3, '1~3만');
+  assert.equal(L.weekRecap(recs, '2026-11-17', null).moods['3'].avg, 425);
+  // 날씨 주소: 좌표는 소수 첫째 자리로
+  assert.equal(L.weatherUrl(37.56789, 126.97812), 'https://api.open-meteo.com/v1/forecast?latitude=37.6&longitude=127&current=temperature_2m,weather_code&timezone=Asia%2FSeoul');
+  assert.deepEqual(L.parseWeather({ current: { temperature_2m: 6.6, weather_code: 61 } }), { wx: 61, tc: 7 });
+  assert.equal(L.parseWeather({}), null);
+  // 달력: 2026년 11월은 일요일 시작, 30일
+  const cells = L.monthCells(2026, 11);
+  assert.equal(cells[0], '2026-11-01'); assert.equal(cells.length, 30);
+  assert.equal(L.monthCells(2026, 12)[2], '2026-12-01', '12월 1일은 화요일');
 });

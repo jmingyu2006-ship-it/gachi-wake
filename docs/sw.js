@@ -1,6 +1,6 @@
 // 같이 일어나요 — 오프라인에서도 앱이 열리게 하는 서비스 워커
 // 앱 파일을 바꿔 배포할 때는 VERSION을 올려 주세요.
-const VERSION = 'gachi-v0.7.0';
+const VERSION = 'gachi-v0.8.0';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './config.js', './icons/icon-192.png', './icons/icon-512.png', './og.png'];
 
 self.addEventListener('install', (e) => {
@@ -48,3 +48,31 @@ function staleWhileRevalidate(req) {
     })
   );
 }
+
+// ---------- 푸시 알림 (아침·잘 시간, 켠 사람만) ----------
+self.addEventListener('push', (e) => {
+  let d = {};
+  try { d = e.data ? e.data.json() : {}; } catch (x) { d = { body: e.data ? e.data.text() : '' }; }
+  const title = String(d.title || '같이 일어나요').slice(0, 80);
+  e.waitUntil(self.registration.showNotification(title, {
+    body: String(d.body || '').slice(0, 200),
+    tag: String(d.tag || 'gachi'),
+    icon: './icons/icon-192.png',
+    badge: './icons/icon-192.png',
+    data: { url: typeof d.url === 'string' ? d.url : './' }
+  }));
+});
+
+// 알림을 누르면: 열려 있는 앱이 있으면 그 창으로, 없으면 새로 열기 (이 사이트 안의 주소만)
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  let target = new URL('./', self.registration.scope).href;
+  try {
+    const u = new URL((e.notification.data && e.notification.data.url) || './', self.registration.scope);
+    if (u.href.startsWith(self.registration.scope)) target = u.href;
+  } catch (x) {}
+  e.waitUntil(self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+    for (const c of list) if (c.url.startsWith(self.registration.scope) && 'focus' in c) return c.focus();
+    return self.clients.openWindow(target);
+  }));
+});

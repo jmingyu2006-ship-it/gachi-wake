@@ -807,3 +807,27 @@ test('보호권으로 쉰 날이 방에도 올라가 친구 프로필에서 방�
   assert.deepEqual(me.errors, []); assert.deepEqual(fr.errors, []);
   await me.context().close(); await fr.context().close();
 });
+
+test('방을 보고 있을 때 친구가 불을 켜면 알려 준다', async () => {
+  const srv = mockServer();
+  const me = await person('2026-11-09T06:30:00', srv);
+  await onboard(me);
+  await me.getByRole('button', { name: '+ 방 만들기' }).click();
+  await me.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민규');
+  await me.getByRole('button', { name: '방 만들기', exact: true }).click();
+  await me.getByText("'우리 방' 방을 만들었어요").waitFor();
+  await me.getByRole('button', { name: '닫기' }).click();
+  const code = [...srv.st.rooms.keys()][0];
+  const fr = await person('2026-11-09T06:40:00', srv, BASE + '?room=' + code);
+  await onboard(fr);
+  await fr.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민수');
+  await fr.getByRole('button', { name: '들어가기', exact: true }).click();
+  await fr.getByText('0명 / 2명이 하루를 시작했어요').waitFor();
+  await me.clock.runFor(21000);
+  await me.getByText('0명 / 2명이 하루를 시작했어요').waitFor();
+  await startDay(fr);
+  await me.clock.runFor(21000);
+  await me.getByText('민수 님이 불을 켰어요 · 06:40').waitFor();
+  assert.deepEqual(me.errors, []); assert.deepEqual(fr.errors, []);
+  await me.context().close(); await fr.context().close();
+});
