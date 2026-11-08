@@ -51,6 +51,14 @@ async function onboard(page, age = '20대') {
 }
 const readDownload = async (dl) => fs.readFileSync(await dl.path(), 'utf8');
 
+// 하루 시작 → 불 켜기 연출이 뜨면 '확인'으로 닫기
+async function startDay(page) {
+  await page.getByRole('button', { name: '하루 시작하기' }).click();
+  await page.clock.runFor(400);
+  const cer = page.locator('#cer');
+  if (await cer.count()) await cer.getByRole('button', { name: '확인' }).click();
+}
+
 test('밤 1시 첫 방문: 잘 시간 안내 → 아침 알림(캘린더 파일·구글 링크) 맞추면 카드가 사라진다, 약관 링크와 기기 번호', async () => {
   const page = await open('2026-11-09T01:00:00');
   // 첫 화면 약관 안내
@@ -86,7 +94,7 @@ test('밤 1시 첫 방문: 잘 시간 안내 → 아침 알림(캘린더 파일�
 test('기록 이미지(1080×1920)와 엑셀용 CSV 내보내기', async () => {
   const page = await open('2026-11-09T07:40:00');
   await onboard(page);
-  await page.getByRole('button', { name: '하루 시작하기' }).click();
+  await startDay(page);
   await page.clock.runFor(1600);
   await page.getByText('오늘 기록 이미지').waitFor();
   await page.locator('[data-share-image]').click();

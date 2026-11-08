@@ -58,6 +58,104 @@
   .win.me.on { background: var(--sun); box-shadow: 0 0 18px rgba(255,138,76,.85); animation: meon 1.4s ease-out both; z-index: 1; }
   @keyframes meon { 0% { transform: scale(1); background: var(--win); } 30% { transform: scale(1.7); background: #FFD2B5; } 100% { transform: scale(1); background: var(--sun); } }
   .win.me.on::after { content: '나'; position: absolute; left: 50%; bottom: calc(100% + 4px); transform: translateX(-50%); font-size: 10.5px; font-weight: 900; color: var(--sun-ink); background: var(--sun); padding: 1px 5px; border-radius: 6px; white-space: nowrap; }
+  /* 오늘의 하늘 (기록한 날 장면 위쪽) */
+  .sky .fx { position: absolute; inset: -18px -16px 0; pointer-events: none; opacity: .9; }
+  .fx-rainbow { background: radial-gradient(circle at 50% 120%, transparent 52%, rgba(255,90,90,.35) 53%, rgba(255,190,80,.35) 56%, rgba(255,240,120,.32) 59%, rgba(120,220,140,.3) 62%, rgba(110,170,255,.3) 65%, rgba(160,120,255,.28) 68%, transparent 70%); }
+  .fx-aurora { background: linear-gradient(100deg, transparent 10%, rgba(80,255,190,.28) 30%, rgba(90,200,255,.22) 50%, rgba(170,120,255,.2) 65%, transparent 85%); filter: blur(6px); animation: aur 9s ease-in-out infinite alternate; }
+  @keyframes aur { from { transform: translateX(-6%) skewY(-3deg); } to { transform: translateX(6%) skewY(3deg); } }
+  .fx-clouds { background: radial-gradient(ellipse 60px 14px at 25% 40%, rgba(255,255,255,.28), transparent 70%), radial-gradient(ellipse 80px 16px at 70% 60%, rgba(255,255,255,.22), transparent 70%); animation: drift 30s linear infinite alternate; }
+  @keyframes drift { from { transform: translateX(-8px); } to { transform: translateX(8px); } }
+  .fx-mist { background: linear-gradient(180deg, transparent 30%, rgba(240,236,228,.28) 100%); }
+  .fx-halo { background: radial-gradient(circle at calc(100% - 49px) 47px, transparent 22px, rgba(255,255,240,.45) 24px, transparent 28px); }
+  .fx-meteor::before, .fx-meteor::after { content: ''; position: absolute; width: 60px; height: 1.5px; background: linear-gradient(90deg, rgba(255,255,255,0), #fff); transform: rotate(-25deg); animation: met 4s ease-in infinite; top: 10px; left: 10%; opacity: 0; }
+  .fx-meteor::after { animation-delay: 2.1s; top: 22px; left: 45%; }
+  @keyframes met { 0% { opacity: 0; transform: translate(0, 0) rotate(-25deg); } 8% { opacity: 1; } 22% { opacity: 0; transform: translate(70px, 32px) rotate(-25deg); } 100% { opacity: 0; } }
+  .fx-drops { background-image: radial-gradient(circle, rgba(255,255,255,.7) 1px, transparent 1.5px); background-size: 23px 19px; opacity: .35; }
+  .scene.dawn.sky-stars .star, .scene.dawn.sky-meteor .star, .scene.dawn.sky-aurora .star { opacity: .7; }
+  .sky-swatch { display: inline-block; width: 22px; height: 22px; border-radius: 7px; vertical-align: middle; border: 1px solid rgba(255,255,255,.18); flex: none; }
+  .tier { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; margin-left: 6px; vertical-align: middle; }
+  .tier.t0 { background: #2B3450; color: var(--muted); } .tier.t1 { background: #2E3B5E; color: #A9C8FF; }
+  .tier.t2 { background: #3A2E5E; color: #D3B5FF; } .tier.t3 { background: linear-gradient(90deg, #5B3A12, #6B2E5E); color: #FFE3A3; }
+  .sky-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 14px; }
+  .sky-row .sub { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
+  .shield { display: inline-flex; gap: 3px; vertical-align: middle; }
+  .shield i { width: 12px; height: 14px; display: inline-block; background: #3A4466; clip-path: polygon(50% 0, 100% 18%, 100% 55%, 50% 100%, 0 55%, 0 18%); }
+  .shield i.on { background: #7FD3FF; }
+  .cell.rest { background: #1E3346; color: #7FD3FF; border: 1px dashed #3C6A8C; }
+  /* 습관 탭: 내 건물(66칸), 하늘 도감, 칭호 */
+  .my-bld { margin: 12px auto 0; width: max-content; background: #1A2238; border: 1px solid #2D3756; border-bottom: none; border-radius: 12px 12px 0 0; padding: 12px; }
+  .my-bld .g { display: grid; grid-template-columns: repeat(6, 26px); grid-auto-rows: 18px; gap: 6px; }
+  .my-bld .w { border-radius: 4px; background: var(--win); }
+  .my-bld .w.on { box-shadow: 0 0 8px rgba(255,199,90,.35); }
+  .my-bld .w.next { outline: 1.5px dashed #6B7699; outline-offset: -1.5px; background: transparent; }
+  .bld-ground { height: 8px; background: #1A2238; border-top: 1px solid #2D3756; margin: 0 -18px; }
+  .skyline { display: flex; gap: 4px; justify-content: center; margin-top: 8px; }
+  .skyline i { width: 14px; height: 22px; border-radius: 3px 3px 0 0; background: linear-gradient(180deg, var(--lit), #C8902E); }
+  .dex { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+  .dex .it { border-radius: 14px; padding: 8px 6px; text-align: center; background: var(--surface2); border: 1px solid var(--line); min-height: 86px; }
+  .dex .sw { height: 38px; border-radius: 9px; margin-bottom: 6px; }
+  .dex .it.no .sw { background: repeating-linear-gradient(45deg, #222A42 0 6px, #1C2338 6px 12px); display: grid; place-items: center; color: #4D577A; font-weight: 900; }
+  .dex .nm { font-size: 11.5px; font-weight: 700; line-height: 1.3; }
+  .dex .ct { font-size: 11px; color: var(--muted); }
+  .titles { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+  .titles span { font-size: 12.5px; padding: 6px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--dim); }
+  .titles span.got { border-color: #6B5A2E; color: var(--lit); background: rgba(255,199,90,.08); }
+  .recap-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+  /* 방: 모두 켜진 날 */
+  .scene.all-lit .building { box-shadow: 0 0 0 1px rgba(255,199,90,.5), 0 0 40px rgba(255,199,90,.35); animation: alllit 2.4s ease-in-out 2; }
+  @keyframes alllit { 50% { box-shadow: 0 0 0 2px rgba(255,220,140,.9), 0 0 70px rgba(255,199,90,.6); } }
+  .scene.all-lit #roomLine b { color: var(--lit); }
+
+  /* 불 켜기 연출 */
+  .cer { position: fixed; inset: 0; z-index: 60; overflow: hidden; background: #060A15; color: var(--ink); -webkit-user-select: none; user-select: none; }
+  .cer-sky { position: absolute; inset: 0; opacity: 0; transition: opacity 1.8s ease .55s; }
+  .cer canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .cer-sun { position: absolute; left: 50%; top: 40%; width: 150px; height: 150px; margin: -75px 0 0 -75px; border-radius: 50%; opacity: 0; transform: translateY(170px) scale(.55); transition: transform 2.2s cubic-bezier(.2,.8,.2,1) .7s, opacity 1.2s ease .7s; }
+  .cer-rays { position: absolute; left: 50%; top: 40%; width: 760px; height: 760px; margin: -380px 0 0 -380px; opacity: 0; transition: opacity 1.6s ease 1.4s;
+    background: repeating-conic-gradient(from 0deg, rgba(255,244,214,.17) 0 5deg, transparent 5deg 15deg);
+    -webkit-mask-image: radial-gradient(circle, #000 12%, transparent 62%); mask-image: radial-gradient(circle, #000 12%, transparent 62%); animation: spin 60s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .cer-win { position: absolute; left: 50%; top: 17%; width: 96px; height: 80px; margin-left: -48px; border-radius: 16px; background: #283049; box-shadow: 0 0 0 7px #1A2238, 0 0 0 8px #2D3756; }
+  .cer-win::before, .cer-win::after { content: ''; position: absolute; background: rgba(26,34,56,.9); }
+  .cer-win::before { left: 50%; top: 0; bottom: 0; width: 4px; margin-left: -2px; } .cer-win::after { top: 50%; left: 0; right: 0; height: 4px; margin-top: -2px; }
+  @keyframes cwin { 0% { background: #283049; } 18% { background: #FFF1C9; box-shadow: 0 0 0 7px #1A2238, 0 0 0 8px #2D3756, 0 0 80px 30px rgba(255,225,150,.9); } 30% { background: #3B4260; box-shadow: 0 0 0 7px #1A2238, 0 0 0 8px #2D3756; } 46% { background: #FFE7A8; } 100% { background: var(--lit); box-shadow: 0 0 0 7px #1A2238, 0 0 0 8px #2D3756, 0 0 70px 24px rgba(255,199,90,.55); } }
+  .cer-ring { position: absolute; left: 50%; top: 17%; width: 96px; height: 80px; margin-left: -48px; border-radius: 22px; border: 3px solid rgba(255,215,120,.0); }
+  @keyframes ring { 0% { transform: scale(.8); border-color: rgba(255,215,120,.9); opacity: 1; } 100% { transform: scale(2.6); border-color: rgba(255,215,120,0); opacity: 0; } }
+  .cer-panel { position: absolute; left: 0; right: 0; bottom: 0; padding: 40px 22px calc(20px + env(safe-area-inset-bottom)); text-align: center;
+    background: linear-gradient(180deg, rgba(10,14,26,0), rgba(10,14,26,.82) 22%, rgba(10,14,26,.95)); }
+  .cer .rv { opacity: 0; transform: translateY(12px); transition: opacity .6s ease, transform .6s cubic-bezier(.2,.8,.2,1); }
+  .cer-time { font-family: var(--num); font-size: 68px; font-weight: 700; color: var(--lit); line-height: 1; letter-spacing: -2px; text-shadow: 0 0 30px rgba(255,199,90,.35); }
+  .cer-title { font-size: 20px; font-weight: 900; margin-top: 8px; }
+  .cer-badge { margin-top: 10px; }
+  .cer-card { display: flex; align-items: center; gap: 12px; text-align: left; margin: 16px auto 0; max-width: 360px; padding: 12px 14px; border-radius: 18px; background: rgba(23,29,48,.9); border: 1px solid var(--line); }
+  .cer .rv.cer-card { transform: perspective(600px) rotateX(70deg); transform-origin: 50% 0; }
+  .cer-card .sky-swatch { width: 46px; height: 46px; border-radius: 12px; }
+  .cer-card .nm { font-size: 16px; font-weight: 900; }
+  .cer-card .sub { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+  .cer-card.t2, .cer-card.t3 { border-color: #6B5A9E; box-shadow: 0 0 24px rgba(170,130,255,.25); }
+  .cer-card.t3 { border-color: #9E7A3A; box-shadow: 0 0 30px rgba(255,200,110,.35); }
+  .new-tag { display: inline-block; font-size: 10.5px; font-weight: 900; color: #0E1322; background: var(--lit); border-radius: 6px; padding: 1px 6px; margin-left: 6px; vertical-align: middle; }
+  .cer-stats { display: flex; justify-content: center; gap: 22px; margin-top: 16px; font-size: 13px; color: var(--muted); }
+  .cer-stats b { display: block; font-family: var(--num); font-size: 26px; color: var(--ink); margin-top: 2px; }
+  .cer-stats b.bump { animation: bump .6s cubic-bezier(.2,1.6,.4,1); color: var(--lit); }
+  @keyframes bump { 0% { transform: scale(1); } 40% { transform: scale(1.45); } 100% { transform: scale(1); } }
+  .cer-extra { margin-top: 12px; font-size: 13.5px; color: #D8D3C8; line-height: 1.7; }
+  .cer-extra .ms { display: inline-block; margin-bottom: 4px; padding: 6px 12px; border-radius: 999px; background: rgba(255,199,90,.14); border: 1px solid rgba(255,199,90,.5); color: var(--lit); font-weight: 900; }
+  .cer-actions { display: flex; gap: 10px; margin-top: 16px; }
+  .cer-actions > * { flex: 1; min-height: 52px; }
+  .cer-snd { position: absolute; right: 14px; top: calc(14px + env(safe-area-inset-top)); width: 44px; height: 44px; border-radius: 14px; border: 1px solid rgba(255,255,255,.18); background: rgba(10,14,26,.4); color: var(--ink); font-size: 18px; z-index: 2; }
+  .cer-skip { position: absolute; left: 10px; top: calc(14px + env(safe-area-inset-top)); font-size: 12px; color: rgba(244,241,234,.55); z-index: 2; padding: 12px 8px; min-height: 44px; background: none; border: none; }
+  .cer.go .cer-sky { opacity: 1; }
+  .cer.go .cer-sun { opacity: 1; transform: none; }
+  .cer.go.e2 .cer-rays { opacity: 1; }
+  .cer.go .cer-win { animation: cwin 1.25s ease-out .15s both; }
+  .cer.go.e4 .cer-ring { animation: ring 1.6s ease-out 1.1s 2; }
+  .cer.go .rv { opacity: 1; transform: none; }
+  .cer.go .d1 { transition-delay: 1.15s; } .cer.go .d2 { transition-delay: 1.35s; } .cer.go .d3 { transition-delay: 1.55s; }
+  .cer.go .d4 { transition-delay: 2.1s; transition-duration: .8s; } .cer.go .d5 { transition-delay: 2.7s; } .cer.go .d6 { transition-delay: 3.1s; } .cer.go .d7 { transition-delay: 3.4s; }
+  .cer.done .rv, .cer.done .cer-sky, .cer.done .cer-sun, .cer.done .cer-rays { transition-delay: 0s !important; transition-duration: .25s !important; }
+  .cer.done .cer-win { animation-duration: .01s; animation-delay: 0s; }
+  @media (prefers-reduced-motion: reduce) { .cer *, .cer { transition: none !important; animation: none !important; } .cer .cer-win { background: var(--lit); } }
   .ground { height: 10px; background: #1A2238; border-top: 1px solid #2D3756; margin: 0 -16px; }
   .scene-meta { display: flex; align-items: center; gap: 8px; padding: 12px 2px 14px; font-size: 14px; }
   .scene-meta b { font-weight: 700; }
@@ -262,7 +360,7 @@
   'use strict';
   var L = window.WakeLogic;
   var CFG = window.GACHI_CONFIG || {};
-  var K = { settings: 'gachi-v2-settings', records: 'gachi-v2-records', anon: 'gachi-anon-id', pending: 'gachi-v2-pending', v1: 'gachi-wake-v1', rooms: 'gachi-v2-rooms', view: 'gachi-v2-view', nick: 'gachi-v2-nick', pendingRoom: 'gachi-v2-pending-room', account: 'gachi-v2-account', consent: 'gachi-v2-consent', age14: 'gachi-v2-age14', reminder: 'gachi-v2-reminder', installHide: 'gachi-v2-install-hide' };
+  var K = { settings: 'gachi-v2-settings', records: 'gachi-v2-records', anon: 'gachi-anon-id', pending: 'gachi-v2-pending', v1: 'gachi-wake-v1', rooms: 'gachi-v2-rooms', view: 'gachi-v2-view', nick: 'gachi-v2-nick', pendingRoom: 'gachi-v2-pending-room', account: 'gachi-v2-account', consent: 'gachi-v2-consent', age14: 'gachi-v2-age14', reminder: 'gachi-v2-reminder', installHide: 'gachi-v2-install-hide', sound: 'gachi-v2-sound', recapSeen: 'gachi-v2-recap-seen', skiesSeen: 'gachi-v2-skies-seen' };
   var TRIAL_TIMES = [348, 402, 435, 480, 570, 740];
   var ACTIONS = ['커튼 열고 햇빛 보기', '물 한 잔 마시기', '이불 개기', '스트레칭 1분'];
   var AGES = [{ id: '10', label: '10대', sleep: 9 }, { id: '20', label: '20대', sleep: 8 }, { id: '30', label: '30대 이상', sleep: 8 }];
@@ -273,7 +371,7 @@
     crowd: null, crowdDay: null, serverOk: null, clearArmed: false, saving: Promise.resolve(), ob: null, edit: null,
     rooms: [], view: 'all', roomData: {}, roomSeen: {}, nick: '', invite: null, leaveArmed: false, account: null, features: []
   };
-  var APP_VERSION = 'v0.6.0';
+  var APP_VERSION = 'v0.7.0';
   function has(f) { return state.features.indexOf(f) >= 0; }
 
   // ---------- 기기 저장 ----------
@@ -482,6 +580,8 @@
     var rec = L.findDay(currentRecords(), key);
     var count = othersCount(now);
     scene.classList.toggle('dawn', !!rec);
+    var di = rec ? L.dayInfo(journey(now), key) : null;
+    applySky(scene, di && di.sky ? L.skyById(di.sky) : null);
     var line = scene.querySelector('#crowdLine'), per = scene.querySelector('#perLine'), dot = scene.querySelector('#liveDot');
     if (count === null) {
       line.textContent = state.serverOk === false ? '지금은 함께 보기를 불러올 수 없어요' : '불러오는 중';
@@ -545,6 +645,35 @@
   var CROWN = '<svg class="crown" width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 8l4.5 4L12 5l4.5 7L21 8l-2 11H5z"/></svg>';
   var MOON = '<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/></svg>';
 
+  // ---------- 여정 (하늘·연속·보호권·칭호) ----------
+  // 다음 연출 안내 문장: "연속 7일이 되면 햇살이 펼쳐져요"
+  function effectPhrase(nx) {
+    if (!nx || nx.at <= 1) return '';
+    var v = { '아침 새': '가 날아와요', '햇살': '이 펼쳐져요', '별똥별': '이 떨어져요', '금빛 고리': '가 생겨요' }[nx.label] || '';
+    return '연속 ' + nx.at + '일이 되면 ' + nx.label + v;
+  }
+  function journey(now) { return L.journeyTimeline(currentRecords(), L.toDateKey(now || effectiveNow())); }
+  function hex2rgb(h) { var n = parseInt(h.slice(1), 16); return [n >> 16, (n >> 8) & 255, n & 255]; }
+  function mixHex(a, b, t) { var x = hex2rgb(a), y = hex2rgb(b); return 'rgb(' + x.map(function (v, i) { return Math.round(v + (y[i] - v) * t); }).join(',') + ')'; }
+  function skyGrad(k, deg) { return 'linear-gradient(' + (deg || 180) + 'deg, ' + k.top + ' 0%, ' + k.mid + ' 55%, ' + k.bot + ' 100%)'; }
+  function skySwatch(k, big) { return '<span class="sky-swatch' + (big ? ' big' : '') + '" style="background:' + skyGrad(k) + '" aria-hidden="true"></span>'; }
+  function tierTag(k) { return '<span class="tier t' + k.tier + '">' + L.TIER_NAMES[k.tier] + '</span>'; }
+  function shieldsHtml(n) { var h = '<span class="shield" aria-label="보호권 ' + n + '개">'; for (var i = 0; i < L.MAX_SHIELDS; i++) h += '<i class="' + (i < n ? 'on' : '') + '"></i>'; return h + '</span>'; }
+  // 기록한 날의 장면: 위쪽은 오늘 하늘, 아래쪽은 어두운 밤으로 이어지게 (글자 대비 유지)
+  function applySky(el, k) {
+    if (!el) return;
+    var skyEl = el.querySelector('.sky'), orb = el.querySelector('.orb'), fx = skyEl && skyEl.querySelector('.fx');
+    el.className = el.className.replace(/\bsky-[a-z]+\b/g, '').trim();
+    if (!k) { el.style.background = ''; if (orb) orb.style.background = ''; if (fx) fx.remove(); return; }
+    el.style.background = 'linear-gradient(180deg, ' + k.top + ' 0%, ' + mixHex(k.mid, '#121A2E', .35) + ' 26%, ' + mixHex(k.bot, '#1B2138', .82) + ' 52%, #181F34 78%)';
+    el.classList.add('sky-' + k.id);
+    if (orb) { orb.style.background = k.sun; orb.style.boxShadow = '0 0 28px ' + k.sun; }
+    if (skyEl) {
+      if (!fx) { fx = document.createElement('span'); skyEl.appendChild(fx); }
+      fx.className = 'fx' + (k.fx ? ' fx-' + k.fx : '');
+    }
+  }
+
   function render() {
     var now = effectiveNow();
     document.getElementById('date').textContent = now.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' });
@@ -585,8 +714,13 @@
         title = L.formatMinute(rec.minuteOfDay) + '에 하루를 시작했어요';
         sub = '';
       }
+      var tl = journey(now), di = L.dayInfo(tl, key), sk = L.skyById(di && di.sky);
+      var nx = L.nextEffect(tl.streak);
       html += '<section class="card' + (state.justStarted === key ? ' fade' : '') + '" aria-label="오늘 결과">' + badge +
-        '<h2 class="status-title">' + title + '</h2>' + (sub ? '<p class="status-sub">' + sub + '</p>' : '') + '</section>';
+        '<h2 class="status-title">' + title + '</h2>' + (sub ? '<p class="status-sub">' + sub + '</p>' : '') +
+        '<div class="sky-row">' + skySwatch(sk) + '<div style="flex:1"><div>오늘의 하늘 · <b>' + esc(sk.name) + '</b>' + tierTag(sk) + '</div>' +
+        '<div class="sub">연속 <b class="num">' + tl.streak + '일</b> · 보호권 ' + shieldsHtml(tl.shields) + (nx && effectPhrase(nx) ? ' · ' + nx.left + '일 뒤 ' + nx.label : '') + '</div></div>' +
+        '<button type="button" class="link-btn quiet" data-replay>다시 보기</button></div></section>';
       html += '<section class="card action"><div><div class="label">일어나서 바로 할 한 가지</div><div class="action-text">' + esc(s.firstAction) + '</div></div>' +
         (rec.actionDoneAt ? '<span class="done">' + CHECK + '했어요</span>' : '<button type="button" class="ghost" id="actionBtn">했어요</button>') + '</section>';
       html += '<section class="card action"><div><div class="label">같이 일어날 사람이 늘수록 창문이 많아져요</div><div class="action-text">친구 창문도 켜 주기</div></div>' +
@@ -614,6 +748,10 @@
         html += '<div class="hint">오늘 기록은 오후 2시에 마감됐어요. 내일 목표는 <b class="num">' + L.formatMinute(tm) + '</b>, 오늘 밤 <b class="num">' + L.bedtimeFor(tm, s.sleepNeedH) + '</b>쯤 누워보세요.</div></section>';
         if (!state.trial) trialLink = '<div class="center"><button type="button" class="link-btn" data-open-trial>아침 시간으로 체험해보기</button></div>';
       }
+    }
+    var recap = state.trial ? null : L.weekRecap(currentRecords(), key, null);
+    if (recap && Local.get(K.recapSeen) !== recap.from && daysSince(recap.to, key) <= 3) {
+      html += '<section class="card action"><div><div class="label">' + recapRange(recap) + ' · ' + recap.days + '일 기록</div><div class="action-text">지난주 리포트가 왔어요</div></div><button type="button" class="ghost" data-recap>보기</button></section>';
     }
     html += extraCardsHtml(now, rec) + trialLink;
     if (room) {
@@ -670,11 +808,39 @@
   function renderHabit(now) {
     var key = L.toDateKey(now), s = state.settings, recs = currentRecords();
     var st = L.habitStats(recs, key, s);
-    var pct = Math.min(100, Math.round(st.journeyDays / st.journeyTotal * 100));
+    var tl = L.journeyTimeline(recs, key), recap = L.weekRecap(recs, key, tl);
     var html = '<section class="fade" style="display:flex;flex-direction:column;gap:14px"><h1 class="h1">습관</h1>';
-    html += '<div class="card"><div class="row-between"><div class="label">66일 여정</div><div class="num" style="font-weight:700">' + st.journeyDays + ' / 66일</div></div>' +
-      '<div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="66" aria-valuenow="' + st.journeyDays + '" aria-label="66일 여정 진행"><i style="width:' + pct + '%"></i></div>' +
-      '<p class="status-sub">새 습관이 자리 잡는 데 걸린 기간의 중앙값이에요. 연속일 필요는 없어요. 기록한 날만 셉니다.</p></div>';
+    // 연속·보호권
+    var nx = L.nextEffect(tl.streak);
+    html += '<div class="card"><div class="row-between"><div><div class="label">연속 기록</div><div class="stat-num num" style="margin-top:4px">' + tl.streak + '일</div></div>' +
+      '<div style="text-align:right"><div class="label">보호권</div><div style="margin-top:8px">' + shieldsHtml(tl.shields) + '</div></div></div>' +
+      '<p class="status-sub">최고 ' + tl.best + '일' + (tl.nextShieldIn ? ' · 기록 ' + tl.nextShieldIn + '일 더 하면 보호권 1개' : ' · 보호권이 가득 찼어요') + (nx && effectPhrase(nx) ? ' · ' + effectPhrase(nx) : (nx ? '' : ' · 불 켤 때 모든 연출을 열었어요')) +
+      '. 보호권은 7일 기록마다 1개(최대 ' + L.MAX_SHIELDS + '개) 생기고, 하루 빠지면 자동으로 연속을 지켜 줘요.</p></div>';
+    // 내 건물: 66칸, 기록한 날마다 그날 하늘 색으로 한 칸씩
+    var done = Math.floor(st.journeyDays / 66), cur = st.journeyDays - done * 66, skies = tl.days.filter(function (d) { return d.rec; });
+    if (done > 0 && cur === 0) { done--; cur = 66; }
+    var mine = skies.slice(done * 66, done * 66 + cur), cells = '';
+    for (var w = 0; w < 66; w++) {
+      var row = 10 - Math.floor(w / 6), col = w % 6, idx = (10 - row) * 6 + col, d = mine[idx];
+      cells += '<span class="w' + (d ? ' on' : (idx === cur ? ' next' : '')) + '" style="grid-row:' + (row + 1) + ';grid-column:' + (col + 1) + (d ? ';background:' + skyGrad(L.skyById(d.sky), 160) : '') + '"' + (d ? ' title="' + d.date + ' ' + esc(L.skyById(d.sky).name) + '"' : '') + '></span>';
+    }
+    html += '<div class="card"><div class="row-between"><div class="label">내 건물 · 66일 여정' + (done ? ' (' + (done + 1) + '번째 건물)' : '') + '</div><div class="num" style="font-weight:700">' + cur + ' / 66</div></div>' +
+      '<div class="my-bld" role="img" aria-label="66칸 중 ' + cur + '칸 불 켜짐"><div class="g">' + cells + '</div></div><div class="bld-ground"></div>' +
+      (done ? '<div class="skyline" aria-label="완성한 건물 ' + done + '채">' + new Array(done + 1).join('<i></i>') + '</div>' : '') +
+      '<p class="status-sub">기록한 날마다 그날 하늘 색으로 한 층씩 불이 켜져요. 66일은 새 습관이 자리 잡는 데 걸린 기간의 중앙값이에요. 연속일 필요는 없어요.</p></div>';
+    // 하늘 도감
+    var found = Object.keys(tl.skyCounts).length;
+    html += '<div class="card"><div class="row-between"><div class="label">하늘 도감</div><div class="label">' + found + ' / ' + L.SKIES.length + '종</div></div><div class="dex">' +
+      L.SKIES.map(function (k) {
+        var n = tl.skyCounts[k.id] || 0;
+        return n ? '<div class="it"><div class="sw" style="background:' + skyGrad(k) + '"></div><div class="nm">' + esc(k.name) + '</div><div class="ct">' + L.TIER_NAMES[k.tier] + ' · ' + n + '번</div></div>'
+                 : '<div class="it no"><div class="sw">?</div><div class="nm">' + (k.tier >= 2 ? '???' : esc(k.name)) + '</div><div class="ct">' + L.TIER_NAMES[k.tier] + '</div></div>';
+      }).join('') + '</div><p class="status-sub">목표 시각을 지킨 날, 연속 7일 이상일 때 드문 하늘이 더 잘 나와요. 칭호를 받는 날엔 드문 하늘 이상이 떠요.</p></div>';
+    // 칭호
+    var nextT = null; L.MILESTONES.forEach(function (m) { if (!nextT && m.n > st.journeyDays) nextT = m; });
+    html += '<div class="card"><div class="row-between"><div class="label">칭호</div><div class="label">' + (nextT ? '다음 \'' + esc(nextT.title) + '\'까지 ' + (nextT.n - st.journeyDays) + '일' : '모두 모았어요') + '</div></div><div class="titles">' +
+      L.MILESTONES.map(function (m) { return '<span class="' + (st.journeyDays >= m.n ? 'got' : '') + '">' + m.n + '일 ' + esc(m.title) + '</span>'; }).join('') + '</div></div>';
+    if (recap) html += '<section class="card action"><div><div class="label">' + recapRange(recap) + '</div><div class="action-text">지난주 리포트</div></div><button type="button" class="ghost" data-recap>보기</button></section>';
     if (!recs.length) {
       html += '<div class="card empty"><b>아직 기록이 없어요</b>내일 아침 \'하루 시작하기\' 한 번이면 첫 칸이 채워져요.</div>';
     }
@@ -791,10 +957,13 @@
   function drawShareCard() {
     var W = 1080, H = 1920, c = document.createElement('canvas'); c.width = W; c.height = H;
     var g = c.getContext('2d'), now = effectiveNow(), key = L.toDateKey(now), recs = currentRecords(), s = state.settings;
-    var rec = L.findDay(recs, key), ev = rec ? L.evaluate(rec) : null, streak = L.localStreak(recs, key), st = L.habitStats(recs, key, s);
+    var rec = L.findDay(recs, key), ev = rec ? L.evaluate(rec) : null, tl = L.journeyTimeline(recs, key), streak = tl.streak, st = L.habitStats(recs, key, s);
+    var di = rec ? L.dayInfo(tl, key) : null, sk = di ? L.skyById(di.sky) : null, skyOf = {};
+    tl.days.forEach(function (d) { if (d.rec) skyOf[d.date] = L.skyById(d.sky); });
     var KR = '"Noto Sans KR", -apple-system, "Apple SD Gothic Neo", sans-serif', NUM = '"Space Grotesk", ' + KR;
     var bg = g.createLinearGradient(0, 0, 0, H);
-    bg.addColorStop(0, '#0B1020'); bg.addColorStop(0.55, rec ? '#1A2142' : '#121A2E'); bg.addColorStop(1, rec ? '#4A2A2E' : '#141B30');
+    if (sk) { bg.addColorStop(0, sk.top); bg.addColorStop(0.42, mixHex(sk.mid, '#121A2E', .3)); bg.addColorStop(0.75, '#141A2E'); bg.addColorStop(1, mixHex(sk.bot, '#141A2E', .55)); }
+    else { bg.addColorStop(0, '#0B1020'); bg.addColorStop(0.55, '#121A2E'); bg.addColorStop(1, '#141B30'); }
     g.fillStyle = bg; g.fillRect(0, 0, W, H);
     if (rec) { var glow = g.createRadialGradient(W / 2, H + 120, 40, W / 2, H + 120, 900); glow.addColorStop(0, 'rgba(255,138,76,.55)'); glow.addColorStop(1, 'rgba(255,138,76,0)'); g.fillStyle = glow; g.fillRect(0, 0, W, H); }
     var rnd = L.hashString ? L.hashString(key) : 7;
@@ -806,20 +975,25 @@
       g.fillStyle = '#FFC75A'; g.font = '700 230px ' + NUM; g.fillText(L.formatMinute(rec.minuteOfDay), W / 2, 520);
       g.fillStyle = '#F4F1EA'; g.font = '700 58px ' + KR; g.fillText('하루를 시작했어요', W / 2, 610);
       var badge = ev.status === 'hit' ? '목표 달성' : ev.status === 'close' ? '목표보다 ' + ev.diff + '분 늦었지만 시작' : ev.status === 'late' ? '늦어도 시작한 게 중요해요' : '';
-      if (badge) { g.font = '700 38px ' + KR; var bw = g.measureText(badge).width + 70; g.fillStyle = ev.status === 'hit' ? 'rgba(91,214,160,.18)' : 'rgba(255,199,90,.16)'; roundRect(g, W / 2 - bw / 2, 655, bw, 72, 36); g.fill(); g.fillStyle = ev.status === 'hit' ? '#5BD6A0' : '#FFC75A'; g.fillText(badge, W / 2, 704); }
+      if (badge) { g.font = '700 38px ' + KR; var bw = g.measureText(badge).width + 70; g.fillStyle = ev.status === 'hit' ? 'rgba(91,214,160,.22)' : 'rgba(255,199,90,.2)'; roundRect(g, W / 2 - bw / 2, 655, bw, 72, 36); g.fill(); g.fillStyle = ev.status === 'hit' ? '#5BD6A0' : '#FFC75A'; g.fillText(badge, W / 2, 704); }
+      if (sk) { g.fillStyle = 'rgba(244,241,234,.85)'; g.font = '500 32px ' + KR; g.fillText('오늘의 하늘 · ' + sk.name + ' (' + L.TIER_NAMES[sk.tier] + ')', W / 2, 770); }
     } else {
       g.fillStyle = '#F4F1EA'; g.font = '900 96px ' + KR; g.fillText('일찍보다 일정하게', W / 2, 520);
       g.fillStyle = '#A6ADBF'; g.font = '500 44px ' + KR; g.fillText('목표 ' + L.formatMinute(L.planTargetFor(s, key)) + '에 하루 시작하기', W / 2, 600);
     }
     // 건물: 최근 48일 = 창문 48개 (불 켜진 칸 = 하루를 시작한 날, 마지막 칸 = 오늘)
-    var days = L.recentDays(recs, key, 48), bx = 190, by = 820, cols = 8, ww = 70, wh = 62, gap = 18, bwid = cols * ww + (cols - 1) * gap + 80;
+    var days = L.recentDays(recs, key, 48), bx = 190, by = 850, cols = 8, ww = 70, wh = 62, gap = 18, bwid = cols * ww + (cols - 1) * gap + 80;
     g.fillStyle = '#1B2238'; roundRect(g, (W - bwid) / 2, by - 50, bwid, 6 * wh + 5 * gap + 100, 28); g.fill();
     g.strokeStyle = '#2B3450'; g.lineWidth = 3; g.stroke();
     bx = (W - (cols * ww + (cols - 1) * gap)) / 2;
     days.forEach(function (on, k) {
       var x = bx + (k % cols) * (ww + gap), y = by + Math.floor(k / cols) * (wh + gap), today = k === days.length - 1;
       if (on) { g.shadowColor = 'rgba(255,199,90,.7)'; g.shadowBlur = 24; }
-      g.fillStyle = on ? (today ? '#FFE7A8' : '#FFC75A') : '#283049'; roundRect(g, x, y, ww, wh, 10); g.fill(); g.shadowBlur = 0;
+      var dk = L.addDays(key, k - days.length + 1), skk = skyOf[dk];
+      if (on && skk) { var wg = g.createLinearGradient(x, y, x, y + wh); wg.addColorStop(0, skk.mid); wg.addColorStop(1, skk.bot); g.fillStyle = wg; }
+      else g.fillStyle = on ? (today ? '#FFE7A8' : '#FFC75A') : '#283049';
+      roundRect(g, x, y, ww, wh, 10); g.fill(); g.shadowBlur = 0;
+      if (today && on) { g.strokeStyle = '#FFF4D6'; g.lineWidth = 4; roundRect(g, x - 3, y - 3, ww + 6, wh + 6, 12); g.stroke(); }
     });
     var lit = days.filter(Boolean).length, yb = by + 6 * wh + 5 * gap + 120;
     g.fillStyle = '#A6ADBF'; g.font = '500 36px ' + KR; g.fillText('최근 48일 중 ' + lit + '일 불을 켰어요', W / 2, yb);
@@ -831,7 +1005,7 @@
       g.textAlign = 'left'; g.fillStyle = '#A6ADBF'; g.font = '500 34px ' + KR; g.fillText(b[0], x + 40, y + 70);
       g.fillStyle = '#F4F1EA'; g.font = '700 84px ' + NUM; g.fillText(b[1], x + 40, y + 165);
     });
-    g.textAlign = 'center'; g.fillStyle = '#7E869B'; g.font = '500 32px ' + KR;
+    g.textAlign = 'center'; g.fillStyle = 'rgba(244,241,234,.82)'; g.font = '500 32px ' + KR; g.shadowColor = 'rgba(0,0,0,.35)'; g.shadowBlur = 8;
     var url = (siteUrl() || 'https://jmingyu2006-ship-it.github.io/gachi-wake/').replace(/^https?:\/\//, '').replace(/\/(index\.html)?$/, '');
     g.fillText('같이 하루를 시작해요 · ' + url, W / 2, H - 90);
     return c;
@@ -866,12 +1040,221 @@
       } else save();
     });
   }
-  view.addEventListener('click', function (e) { if (e.target.closest('[data-share-image]')) openShareImage(); });
+  view.addEventListener('click', function (e) {
+    if (e.target.closest('[data-share-image]')) openShareImage();
+    if (e.target.closest('[data-replay]')) { primeAudio(); playCeremony(ceremonyInfo(effectiveNow()), true); }
+  });
+
+  // ---------- 지난주 리포트 ----------
+  function daysSince(a, b) { return Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86400000); }
+  function recapRange(r) { var f = function (k) { return Number(k.slice(5, 7)) + '/' + Number(k.slice(8)); }; return f(r.from) + '~' + f(r.to); }
+  function openRecap() {
+    var now = effectiveNow(), key = L.toDateKey(now), r = L.weekRecap(currentRecords(), key, null);
+    if (!r) return;
+    Local.set(K.recapSeen, r.from);
+    var msg = [];
+    if (r.days >= 6) msg.push('거의 매일 하루를 시작했어요. 리듬이 몸에 붙는 중이에요.');
+    else if (r.days >= r.prevDays + 1 && r.prevDays) msg.push('전주보다 ' + (r.days - r.prevDays) + '일 더 기록했어요.');
+    if (r.diff !== null && r.diff <= -5) msg.push('평균 시작이 전주보다 ' + (-r.diff) + '분 빨라졌어요.');
+    else if (r.diff !== null && r.diff >= 10) msg.push('평균이 ' + r.diff + '분 늦어졌어요. 이번 주는 목표 시각에 한 번 맞춰 봐요.');
+    if (r.wobble !== null && r.wobble <= 15) msg.push('흔들림 ±' + r.wobble + '분, 아주 규칙적이에요.');
+    if (r.rests) msg.push('보호권 ' + r.rests + '개가 연속 기록을 지켜 줬어요.');
+    if (!msg.length) msg.push('한 주에 ' + r.days + '번이라도 기록한 게 시작이에요. 이번 주엔 하루만 더 늘려 봐요.');
+    var el = document.getElementById('sheetBody');
+    el.innerHTML = '<h2 id="sheetTitle">지난주 리포트</h2><p class="lead">' + recapRange(r) + ' · 월요일부터 일요일까지</p>' +
+      '<div class="recap-grid">' + profileStat('기록한 날', r.days + ' / 7', r.prevDays ? '전주 ' + r.prevDays + '일' : '첫 주') +
+        profileStat('목표 지킨 날', r.hits + '일', '+15분 안') +
+        profileStat('평균 시작', L.formatMinute(r.avg), r.diff === null ? '전주 기록 없음' : (r.diff === 0 ? '전주와 같음' : '전주보다 ' + Math.abs(r.diff) + '분 ' + (r.diff < 0 ? '빨라짐' : '늦어짐'))) +
+        profileStat('흔들림', r.wobble === null ? '—' : '±' + r.wobble + '분', '작을수록 규칙적') + '</div>' +
+      '<div class="section-label">지난주 하늘</div><div style="display:flex;gap:6px;flex-wrap:wrap">' + r.skies.map(function (id) { var k = L.skyById(id); return '<span title="' + esc(k.name) + '">' + skySwatch(k) + '</span>'; }).join('') + '</div>' +
+      '<div class="note" style="margin-top:14px">' + msg.join('<br>') + '</div>' +
+      '<button type="button" class="close-btn" id="closeSheet">닫기</button>';
+    document.getElementById('sheet').hidden = false;
+    el.querySelector('#closeSheet').addEventListener('click', function () { closeSheet(); render(); });
+    el.querySelector('h2').setAttribute('tabindex', '-1'); el.querySelector('h2').focus();
+  }
+  view.addEventListener('click', function (e) { if (e.target.closest('[data-recap]')) openRecap(); });
+
+  // ---------- 불 켜기 연출 ----------
+  // 순서: 창문 점등 → 밤하늘이 오늘 하늘로 → 해가 떠오름 → 시각 → 오늘의 하늘 카드 → 연속·여정 → 칭호·보호권 소식
+  // 연속 기록이 길수록 효과가 늘어남: 1 불빛 · 3 아침 새 · 7 햇살 · 14 별똥별 · 30 금빛 고리. 화면을 누르면 건너뜀.
+  var audioCtx = null;
+  function soundOn() { return !!Local.get(K.sound); }
+  function primeAudio() {
+    if (!soundOn()) return;
+    try { var AC = window.AudioContext || window.webkitAudioContext; if (!AC) return; audioCtx = audioCtx || new AC(); if (audioCtx.state === 'suspended') audioCtx.resume(); } catch (e) {}
+  }
+  function chime(tier, rare) {
+    if (!soundOn() || !audioCtx) return;
+    try {
+      var notes = [523.25, 659.25, 783.99, 1046.5].slice(0, 2 + Math.min(2, tier));
+      if (rare) notes.push(1318.5, 1567.98);
+      notes.forEach(function (f, i) {
+        var o = audioCtx.createOscillator(), g = audioCtx.createGain(), t = audioCtx.currentTime + 0.25 + i * 0.13;
+        o.type = 'sine'; o.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.11, t + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
+        o.connect(g); g.connect(audioCtx.destination); o.start(t); o.stop(t + 1.7);
+      });
+    } catch (e) {}
+  }
+  function crowdNote(min, key) {
+    var b = crowdBuckets(key), i = Math.floor((min - L.OPEN_MIN) / 30);
+    if (!b || i < 0 || i >= b.length) return '';
+    var n = Number(b[i]) || 0, from = L.OPEN_MIN + i * 30;
+    return n > 0 ? L.formatMinute(from) + '~' + L.formatMinute(from + 30) + '에 <b>' + fmt(n) + '명</b>과 같이 불을 켰어요' : '';
+  }
+  function ceremonyInfo(now) {
+    var key = L.toDateKey(now), tl = journey(now), di = L.dayInfo(tl, key), rec = L.findDay(currentRecords(), key);
+    if (!rec || !di) return null;
+    var seen = Local.get(K.skiesSeen) || {}, isNew = !state.trial && !seen[di.sky];
+    var before = tl.days.filter(function (d) { return d.rec && d.date < key && d.sky === di.sky; }).length;
+    return { key: key, rec: rec, ev: L.evaluate(rec), tl: tl, di: di, sky: L.skyById(di.sky), isNew: isNew && before === 0, prevStreak: Math.max(0, di.streak - 1) };
+  }
+  function playCeremony(info, replay) {
+    if (!info) return;
+    var old = document.getElementById('cer'); if (old) old.remove();
+    var k = info.sky, tier = L.effectTier(info.di.streak), di = info.di, tl = info.tl;
+    if (!replay && !state.trial) { var seen = Local.get(K.skiesSeen) || {}; seen[k.id] = true; Local.set(K.skiesSeen, seen); }
+    var badge = info.ev.status === 'hit' ? '<span class="badge hit">' + CHECK + '목표 달성</span>' : info.ev.status === 'close' ? '<span class="badge close">조금 늦었지만 시작</span>' : info.ev.status === 'late' ? '<span class="badge late">늦어도 시작한 게 중요해요</span>' : '';
+    var lines = [];
+    if (di.n === 1) lines.push('<span class="ms">첫 창문에 불이 켜졌어요</span>');
+    if (di.milestone) lines.push('<span class="ms">' + di.n + '일째 · 칭호 \'' + esc(di.milestone.title) + '\'</span>');
+    if (di.shieldEarned) lines.push('보호권을 1개 받았어요. 하루 빠져도 연속 기록이 이어져요');
+    var yday = L.addDays(info.key, -1);
+    if (tl.restDays.indexOf(yday) >= 0) lines.push('어제는 보호권으로 연속 기록을 지켰어요');
+    var room = currentRoom(), rd = room && state.roomData[room.code];
+    if (room && rd && rd.view) { var rt = L.roomTogether(rd.view, info.key, info.rec.minuteOfDay); lines.push('\'' + esc(room.name) + '\' 방 <b>' + rt.lit + ' / ' + rt.total + '명</b> 켜짐' + (rt.allLitToday ? ' · 모두 켜졌어요!' : '')); }
+    else { var cn = crowdNote(info.rec.minuteOfDay, info.key); if (cn) lines.push(cn); }
+    var nx = L.nextEffect(di.streak);
+    if (nx && effectPhrase(nx) && lines.length < 3) lines.push(effectPhrase(nx) + ' · ' + nx.left + '일 남음');
+    var el = document.createElement('div');
+    el.id = 'cer'; el.className = 'cer e' + tier; el.setAttribute('role', 'dialog'); el.setAttribute('aria-modal', 'true'); el.setAttribute('aria-label', '하루 시작');
+    el.innerHTML = '<div class="cer-sky" style="background:' + skyGrad(k) + '"></div><div class="cer-rays"></div>' +
+      '<div class="cer-sun" style="background:radial-gradient(circle, ' + k.sun + ' 0 34%, ' + k.sun + '55 46%, transparent 70%)"></div>' +
+      '<canvas aria-hidden="true"></canvas><div class="cer-ring"></div><div class="cer-win" aria-hidden="true"></div>' +
+      '<button type="button" class="cer-skip" data-cer-skip>' + (reduced ? '' : '누르면 건너뛰기') + '</button>' +
+      '<button type="button" class="cer-snd" data-cer-snd aria-label="효과음 ' + (soundOn() ? '끄기' : '켜기') + '" aria-pressed="' + soundOn() + '">' + (soundOn() ? '🔔' : '🔕') + '</button>' +
+      '<div class="cer-panel">' +
+        '<div class="cer-time num rv d1">' + L.formatMinute(info.rec.minuteOfDay) + '</div>' +
+        '<div class="cer-title rv d2">하루를 시작했어요</div>' +
+        (badge ? '<div class="cer-badge rv d3">' + badge + '</div>' : '') +
+        '<div class="cer-card rv d4 t' + k.tier + '">' + skySwatch(k) + '<div><div class="sub">오늘의 하늘</div><div class="nm">' + esc(k.name) + tierTag(k) + (info.isNew ? '<span class="new-tag">새로 발견</span>' : '') + '</div>' +
+          '<div class="sub">하늘 도감 ' + Object.keys(tl.skyCounts).length + ' / ' + L.SKIES.length + '</div></div></div>' +
+        '<div class="cer-stats rv d5"><div>연속<b class="num" id="cerStreak">' + info.prevStreak + '일</b></div><div>66일 여정<b class="num">' + tl.journeyDays + ' / 66</b></div><div>보호권<b>' + shieldsHtml(tl.shields) + '</b></div></div>' +
+        '<div class="cer-extra rv d6">' + lines.slice(0, 3).join('<br>') + '</div>' +
+        '<div class="cer-actions rv d7"><button type="button" class="secondary" data-cer-share>기록 이미지</button><button type="button" class="primary" data-cer-close>확인</button></div>' +
+      '</div>';
+    document.body.appendChild(el);
+    var timers = [], stopFx = function () {};
+    var finish = function () { el.classList.add('done'); var b = el.querySelector('#cerStreak'); if (b) b.textContent = di.streak + '일'; };
+    var close = function () { timers.forEach(clearTimeout); stopFx(); el.remove(); render(); var ob = document.getElementById('openSettings'); if (ob) ob.focus(); };
+    el.addEventListener('click', function (e) {
+      if (e.target.closest('[data-cer-close]')) return close();
+      if (e.target.closest('[data-cer-share]')) { close(); return openShareImage(); }
+      if (e.target.closest('[data-cer-snd]')) {
+        Local.set(K.sound, !soundOn()); var sb = e.target.closest('[data-cer-snd]');
+        sb.textContent = soundOn() ? '🔔' : '🔕'; sb.setAttribute('aria-pressed', soundOn()); sb.setAttribute('aria-label', '효과음 ' + (soundOn() ? '끄기' : '켜기'));
+        if (soundOn()) { primeAudio(); chime(tier, k.tier >= 2); }
+        return;
+      }
+      finish();
+    });
+    el.addEventListener('keydown', function (e) { if (e.key === 'Escape') close(); });
+    requestAnimationFrame(function () { requestAnimationFrame(function () { el.classList.add('go'); }); });
+    if (reduced) { finish(); } else {
+      stopFx = runFx(el.querySelector('canvas'), k, tier, !!di.milestone || di.n === 1);
+      timers.push(setTimeout(function () {
+        var b = el.querySelector('#cerStreak'); if (!b) return;
+        b.textContent = di.streak + '일'; b.classList.add('bump');
+      }, 2950));
+    }
+    if (!replay) chime(tier, k.tier >= 2);
+    el.querySelector('[data-cer-close]').focus({ preventScroll: true });
+  }
+  // 캔버스 효과: 떠오르는 빛, 새, 별똥별, 하늘별 효과(무지개·오로라·햇무리·구름·별), 칭호 날 꽃가루
+  function runFx(cv, k, tier, party) {
+    var dpr = Math.min(2, window.devicePixelRatio || 1), W = cv.clientWidth || window.innerWidth, H = cv.clientHeight || window.innerHeight;
+    cv.width = W * dpr; cv.height = H * dpr;
+    var g = cv.getContext('2d'); if (!g) return function () {};
+    g.scale(dpr, dpr);
+    var R = Math.random, sunX = W / 2, sunY = H * 0.40, t0 = performance.now(), raf = 0, alive = true;
+    var motes = [], birds = [], meteors = [], conf = [], stars = [], clouds = [];
+    var nM = [26, 36, 48, 64, 90][tier];
+    for (var i = 0; i < nM; i++) motes.push({ x: R() * W, y: H * (0.35 + R() * 0.65), r: 0.8 + R() * 2.4, vy: 10 + R() * 26, vx: (R() - 0.5) * 10, ph: R() * 6.3, d: R() * 1.6 });
+    if (tier >= 1) for (i = 0; i < 2 + tier; i++) birds.push({ x: -30 - i * 46 - R() * 30, y: H * (0.08 + R() * 0.2), s: 0.7 + R() * 0.5, v: 36 + R() * 22, ph: R() * 6.3 });
+    var starry = k.fx === 'stars' || k.fx === 'meteor' || k.fx === 'aurora' || tier >= 3;
+    if (starry) for (i = 0; i < 50; i++) stars.push({ x: R() * W, y: R() * H * 0.45, r: 0.5 + R() * 1.2, ph: R() * 6.3 });
+    if (k.fx === 'clouds' || k.fx === 'mist') for (i = 0; i < 5; i++) clouds.push({ x: R() * W, y: H * (0.1 + R() * 0.3), w: 80 + R() * 120, v: 4 + R() * 8 });
+    var nextMeteor = (tier >= 3 || k.fx === 'meteor') ? 1.2 : 1e9;
+    var light = function (a) { return 'rgba(255,236,190,' + a + ')'; };
+    function frame(now) {
+      if (!alive) return;
+      var t = (now - t0) / 1000, dt = Math.min(0.05, t - (frame.last || 0)); frame.last = t;
+      g.clearRect(0, 0, W, H);
+      var sky = Math.min(1, Math.max(0, (t - 0.6) / 1.6));
+      // 별 (하늘이 밝아지며 옅어짐, 별 하늘은 남음)
+      stars.forEach(function (s) { g.fillStyle = 'rgba(255,255,255,' + ((0.4 + 0.4 * Math.sin(t * 2 + s.ph)) * (k.fx === 'stars' || k.fx === 'meteor' || k.fx === 'aurora' ? 1 : 1 - sky * 0.8)) + ')'; g.beginPath(); g.arc(s.x, s.y, s.r, 0, 6.3); g.fill(); });
+      // 오로라
+      if (k.fx === 'aurora') for (var b = 0; b < 3; b++) {
+        g.beginPath();
+        for (var x = 0; x <= W; x += 12) { var y = H * (0.12 + b * 0.06) + Math.sin(x / 70 + t * 0.8 + b) * 14; if (x === 0) g.moveTo(x, y); else g.lineTo(x, y); }
+        g.lineTo(W, 0); g.lineTo(0, 0); g.closePath();
+        var ag = g.createLinearGradient(0, 0, 0, H * 0.3); ag.addColorStop(0, 'rgba(80,255,190,0)'); ag.addColorStop(1, ['rgba(80,255,190,.22)', 'rgba(90,200,255,.18)', 'rgba(170,120,255,.16)'][b]);
+        g.fillStyle = ag; g.globalAlpha = sky; g.fill(); g.globalAlpha = 1;
+      }
+      // 무지개·햇무리
+      if (k.fx === 'rainbow' && sky > 0) {
+        ['255,90,90', '255,170,70', '255,235,110', '110,215,140', '100,160,255', '160,110,255'].forEach(function (c, j) {
+          g.strokeStyle = 'rgba(' + c + ',' + (0.32 * sky) + ')'; g.lineWidth = 7; g.beginPath(); g.arc(W / 2, H * 0.62, W * 0.62 - j * 7, Math.PI * 1.05, Math.PI * 1.95); g.stroke();
+        });
+      }
+      if (k.fx === 'halo' && sky > 0) { g.strokeStyle = 'rgba(255,255,235,' + (0.45 * sky) + ')'; g.lineWidth = 3; g.beginPath(); g.arc(sunX, sunY, 110 + Math.sin(t) * 3, 0, 6.3); g.stroke(); }
+      // 구름·안개
+      clouds.forEach(function (c) { c.x += c.v * dt; if (c.x - c.w > W) c.x = -c.w; var cg = g.createRadialGradient(c.x, c.y, 2, c.x, c.y, c.w / 2); cg.addColorStop(0, 'rgba(255,255,255,' + (0.22 * sky) + ')'); cg.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = cg; g.beginPath(); g.ellipse(c.x, c.y, c.w / 2, c.w / 7, 0, 0, 6.3); g.fill(); });
+      // 떠오르는 빛
+      motes.forEach(function (m) {
+        if (t < 0.5 + m.d) return;
+        m.y -= m.vy * dt; m.x += (m.vx + Math.sin(t * 1.5 + m.ph) * 6) * dt;
+        if (m.y < -10) { m.y = H + 10; m.x = R() * W; }
+        var a = Math.min(1, (t - 0.5 - m.d) * 1.5) * (0.35 + 0.35 * Math.sin(t * 3 + m.ph));
+        g.fillStyle = light(a); g.beginPath(); g.arc(m.x, m.y, m.r, 0, 6.3); g.fill();
+      });
+      // 아침 새
+      birds.forEach(function (bd) {
+        if (t < 1.6) return;
+        bd.x += bd.v * dt; var fl = Math.sin(t * 9 + bd.ph) * 5 * bd.s, sz = 9 * bd.s;
+        g.strokeStyle = 'rgba(20,24,40,.75)'; g.lineWidth = 1.8; g.beginPath();
+        g.moveTo(bd.x - sz, bd.y - fl); g.quadraticCurveTo(bd.x - sz / 2, bd.y - fl / 2 - 2, bd.x, bd.y); g.quadraticCurveTo(bd.x + sz / 2, bd.y - fl / 2 - 2, bd.x + sz, bd.y - fl); g.stroke();
+      });
+      // 별똥별
+      if (t > nextMeteor) { meteors.push({ x: R() * W * 0.7, y: R() * H * 0.2, life: 0 }); nextMeteor = t + 0.7 + R() * 1.1; }
+      meteors = meteors.filter(function (mt) {
+        mt.life += dt; var p = mt.life / 0.9, x = mt.x + p * 160, y = mt.y + p * 80;
+        var mg = g.createLinearGradient(x - 60, y - 30, x, y); mg.addColorStop(0, 'rgba(255,255,255,0)'); mg.addColorStop(1, 'rgba(255,255,255,' + (1 - p) + ')');
+        g.strokeStyle = mg; g.lineWidth = 2; g.beginPath(); g.moveTo(x - 60, y - 30); g.lineTo(x, y); g.stroke();
+        return p < 1;
+      });
+      // 칭호 날·첫날: 꽃가루
+      if (party && t > 2.9 && !frame.burst) {
+        frame.burst = true;
+        for (var c2 = 0; c2 < 90; c2++) conf.push({ x: W / 2, y: H * 0.3, vx: (R() - 0.5) * 420, vy: -R() * 380 - 80, r: R() * 6.3, vr: (R() - 0.5) * 10, c: ['#FFC75A', '#FF8A4C', '#5BD6A0', '#86BEE6', '#F4F1EA', '#D3B5FF'][c2 % 6], w: 4 + R() * 4 });
+      }
+      conf = conf.filter(function (p) {
+        p.vy += 520 * dt; p.x += p.vx * dt; p.y += p.vy * dt; p.r += p.vr * dt;
+        g.save(); g.translate(p.x, p.y); g.rotate(p.r); g.fillStyle = p.c; g.fillRect(-p.w / 2, -p.w / 4, p.w, p.w / 2); g.restore();
+        return p.y < H + 20;
+      });
+      if (t < 14) raf = requestAnimationFrame(frame);
+    }
+    raf = requestAnimationFrame(frame);
+    return function () { alive = false; cancelAnimationFrame(raf); };
+  }
 
   // ---------- 동작 ----------
   function onStart(e) {
     var btn = e.currentTarget;
     btn.classList.add('pressed'); btn.disabled = true;
+    primeAudio();
     if (navigator.vibrate) { try { navigator.vibrate([20, 40, 30]); } catch (x) {} }
     var now = effectiveNow();
     state.justStarted = L.toDateKey(now);
@@ -879,13 +1262,15 @@
       if (state.trial) {
         var rt = L.createStartRecord(currentRecords(), now, state.settings);
         if (rt.ok) state.trial.record = rt.record; else toast(rt.reason === 'too-early' ? '새벽 4시부터 시작할 수 있어요.' : '오늘 기록은 마감됐어요.');
-        return render();
+        render();
+        if (rt.ok) playCeremony(ceremonyInfo(now));
+        return;
       }
       var r = L.createStartRecord(state.records, now, state.settings);
       if (!r.ok) { toast(r.reason === 'too-early' ? '새벽 4시부터 시작할 수 있어요.' : '오늘 기록은 마감됐어요.'); return render(); }
       state.records = r.records;
       render();
-      if (r.created) persist(r.record);
+      if (r.created) { persist(r.record); playCeremony(ceremonyInfo(now)); }
     }, 200);
   }
 
@@ -1025,6 +1410,7 @@
       '<div class="section-label">일어나서 바로 할 한 가지</div>' + actionPicker(m) +
       '<div class="section-label">나이대</div>' + agePicker(m) + '<div class="err" id="setErr" role="alert"></div>' +
       '<button type="button" class="primary" id="saveSettings" style="width:100%">저장</button>' +
+      '<div class="section-label">불 켤 때</div><label class="check"><input type="checkbox" id="soundToggle"' + (soundOn() ? ' checked' : '') + '> 효과음 (작은 종소리)</label>' +
       '<div class="section-label">아침 알림</div><button type="button" class="secondary" id="setReminder" style="width:100%;min-height:48px">캘린더에 아침 알림 추가</button>' +
       '<div class="section-label">내 기록</div><button type="button" class="secondary" id="exportCsv" style="width:100%;min-height:48px">기록 내보내기 (엑셀·CSV)</button>' +
       '<button type="button" class="danger" id="clearAll">이 기기의 기록 모두 지우기</button>' +
@@ -1047,6 +1433,7 @@
       saveSettings(made.settings); closeSheet(); render(); toast('저장했어요.');
     });
     el.querySelector('#setReminder').addEventListener('click', openReminder);
+    el.querySelector('#soundToggle').addEventListener('change', function (e) { Local.set(K.sound, !!e.target.checked); if (e.target.checked) { primeAudio(); chime(1, false); } });
     if (el.querySelector('#sendFeedback')) el.querySelector('#sendFeedback').addEventListener('click', openFeedback);
     if (el.querySelector('#eraseServer')) el.querySelector('#eraseServer').addEventListener('click', function (e) {
       var btn = e.currentTarget;
@@ -1167,10 +1554,16 @@
     syncProfile();
   }
   // 방에 들어가 있으면 목표 시각과 최근 66일 기록을 올려 둔다 (연속 일수 계산용)
+  function syncRests() {
+    if (!Server.on || !state.rooms.length || !has('rests')) return Promise.resolve();
+    var today = L.toDateKey(realNow()), days = L.journeyTimeline(state.records, today).restDays.filter(function (d) { return daysSince(d, today) <= 66; }).slice(-20);
+    if (!days.length) return Promise.resolve();
+    return Server.rpc('sync_rests', { p_anon: anonId, p_days: days }).catch(function () {});
+  }
   function syncProfile() {
     if (!Server.on || !state.rooms.length || !state.settings) return Promise.resolve();
     return Server.rpc('sync_profile', { p_anon: anonId, p_target: state.settings.targetMin, p_starts: L.recentStarts(state.records, L.toDateKey(realNow())) })
-      .then(function () { return refreshRoom(); }).catch(function () {});
+      .then(function () { return syncRests(); }).then(function () { return refreshRoom(); }).catch(function () {});
   }
   function profileStat(label, value, note) {
     return '<div class="card stat"><div class="label">' + label + '</div><div class="stat-num num">' + value + '</div><div class="stat-note">' + note + '</div></div>';
@@ -1183,11 +1576,14 @@
     var local = p.me ? L.findDay(currentRecords(), key) : null;
     if (local && !p.today) p.today = L.formatMinute(local.minuteOfDay);
     // 오늘 눌렀는데 아직 서버에 안 올라갔으면 서버 값(어제까지)에 오늘 하루를 더한다
-    var streak = p.streak + (p.me && local && !Number.isInteger(m.start_min) ? 1 : 0);
+    var mytl = p.me ? journey() : null;
+    if (mytl) p.week.forEach(function (w) { if (!w.time && mytl.restDays.indexOf(w.key) >= 0) { w.rest = true; w.status = 'rest'; } });
+    var streak = mytl ? mytl.streak : p.streak;
     var streakNote = p.today ? '오늘까지' : (streak ? '어제까지 · 오늘 하면 ' + (streak + 1) + '일' : '오늘 시작하면 1일');
     var cells = p.week.map(function (w) {
-      var cls = w.time ? (w.status || 'none') : (w.isToday ? 'todo' : '');
+      var cls = w.rest ? 'rest' : (w.time ? (w.status || 'none') : (w.isToday ? 'todo' : ''));
       var nm = { hit: '목표 달성', close: '조금 늦음', late: '늦음', none: '기록' }[w.status] || '';
+      if (w.rest) return '<div class="day"><div class="day-label">' + w.label + '</div><div class="cell rest" aria-label="' + w.label + '요일 보호권으로 쉰 날">' + '<span class="shield"><i class="on"></i></span>' + '</div></div>';
       return '<div class="day"><div class="day-label' + (w.isToday ? ' today' : '') + '">' + (w.isToday ? '오늘' : w.label) + '</div>' +
         '<div class="cell ' + cls + ' num" aria-label="' + w.label + '요일 ' + (w.time ? w.time + ' ' + nm : '기록 없음') + '">' + (w.time || '') + '</div></div>';
     }).join('');
@@ -1267,7 +1663,10 @@
     var room = currentRoom(), grid = document.getElementById('roomGrid');
     if (!room || !grid) return;
     var now = effectiveNow(), key = L.toDateKey(now), rec = L.findDay(currentRecords(), key);
-    document.getElementById('roomScene').classList.toggle('dawn', !!rec);
+    var rs0 = document.getElementById('roomScene');
+    rs0.classList.toggle('dawn', !!rec);
+    var rdi = rec ? L.dayInfo(journey(now), key) : null;
+    applySky(rs0, rdi && rdi.sky ? L.skyById(rdi.sky) : null);
     var d = state.roomData[room.code], line = document.getElementById('roomLine'), sub = document.getElementById('roomSub');
     if (!d || !d.view) {
       line.textContent = d && d.error ? '방을 불러올 수 없어요. 잠시 후 다시 시도해요.' : '불러오는 중';
@@ -1284,8 +1683,11 @@
         '<span class="nm">' + (s.owner ? CROWN : '') + esc(s.name) + (s.me ? ' (나)' : '') + '</span><span class="tm">' + (s.time || '아직') + '</span></button>';
     }).join('');
     document.getElementById('roomImg').setAttribute('aria-label', room.name + ' 건물, 창문을 누르면 프로필이 열려요');
-    line.innerHTML = '<b class="num">' + rs.started + '명</b> / ' + rs.total + '명이 하루를 시작했어요';
-    sub.textContent = d.error ? '연결이 불안정해요 · 마지막으로 받은 내용이에요' : (rs.total < 2 ? '아직 혼자예요. 아래에서 친구를 초대해 보세요' : '창문을 누르면 프로필 · 20초마다 새로 고침');
+    var tg = L.roomTogether(d.view, key, rec ? rec.minuteOfDay : null);
+    line.innerHTML = tg.allLitToday ? '<b>모두 켜졌어요!</b> 오늘 ' + rs.total + '명 전원 하루를 시작했어요' : '<b class="num">' + rs.started + '명</b> / ' + rs.total + '명이 하루를 시작했어요';
+    sub.textContent = d.error ? '연결이 불안정해요 · 마지막으로 받은 내용이에요' : (rs.total < 2 ? '아직 혼자예요. 아래에서 친구를 초대해 보세요' :
+      '이번 주 모두 켠 날 ' + tg.weekAllDays + '일 · 창문을 누르면 프로필');
+    rs0.classList.toggle('all-lit', tg.allLitToday);
     document.getElementById('roomDot').className = d.error ? 'dot demo' : 'dot';
   }
   function refreshRoom() {
@@ -1740,7 +2142,7 @@
     refreshCrowd(); syncPending(); syncRoomStarts(); syncProfile();
     Server.rpc('app_info', {}).then(function (i) {
       if (i && Array.isArray(i.features)) state.features = i.features.filter(function (f) { return typeof f === 'string'; });
-      flushErrors();
+      flushErrors(); syncRests();
     }).catch(function () {});
     setInterval(function () { if (document.visibilityState !== 'hidden') refreshCrowd(); }, 30000);
     document.addEventListener('visibilitychange', function () {

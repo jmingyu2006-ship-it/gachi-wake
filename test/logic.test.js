@@ -335,3 +335,78 @@ test('내 기록: 연속 일수, 최근 n일, CSV (따옴표·쉼표 처리, BOM
   assert.equal(rows[3], '2026-11-07,토,09:05,07:15,110,늦음,');
   assert.equal(L.recordsCsv([]).slice(1), '날짜,요일,하루 시작,그날 목표,목표와 차이(분),결과,첫 행동\r\n');
 });
+
+function buildRecs(startKey, n, skip, timeOf) {
+  const s = L.makeSettings({ baselineMin: 440, targetMin: 420, sleepNeedH: 8, firstAction: '물' }, startKey).settings;
+  let recs = [];
+  for (let i = 0; i < n; i++) {
+    if (skip.includes(i)) continue;
+    const d = L.addDays(startKey, i);
+    recs = L.createStartRecord(recs, new Date(d + 'T' + (timeOf ? timeOf(i) : '07:05') + ':00+09:00'), s).records;
+  }
+  return recs;
+}
+
+test('여정: 첫날은 금빛 아침, 하늘은 날마다 고정, 칭호 날은 드문 하늘 이상', () => {
+  const recs = buildRecs('2026-09-01', 40, []);
+  const a = L.journeyTimeline(recs, '2026-10-10'), b = L.journeyTimeline(recs, '2026-10-10');
+  assert.equal(a.days[0].sky, 'gold');
+  assert.deepEqual(a.days.map(d => d.sky), b.days.map(d => d.sky), '다시 계산해도 같은 하늘');
+  for (const d of a.days.filter(x => x.milestone)) assert.ok(L.skyById(d.sky).tier >= 2, d.n + '일째 칭호 날은 드묾 이상');
+  assert.deepEqual(a.titles.map(t => t.n), [3, 7, 14, 21, 30]);
+  assert.equal(a.journeyDays, 40);
+  assert.equal(Object.values(a.skyCounts).reduce((x, y) => x + y, 0), 40);
+  // 다른 사람(첫 기록 시각이 다름)은 다른 하늘
+  const other = buildRecs('2026-09-01', 40, [], () => '07:06');
+  assert.notDeepEqual(L.journeyTimeline(other, '2026-10-10').days.map(d => d.sky), a.days.map(d => d.sky));
+});
+
+test('보호권: 7일마다 1개(최대 2개), 빠진 날에 자동으로 써서 연속을 지킴, 다 쓰면 끊김', () => {
+  // 0~6 기록(보호권 1) → 7 빠짐(보호) → 8~9 기록 → 10,11 빠짐(11에서 끊김)
+  const recs = buildRecs('2026-10-01', 12, [7, 10, 11]);
+  const tl = L.journeyTimeline(recs, '2026-10-12');
+  assert.deepEqual(tl.restDays, ['2026-10-08']);
+  assert.equal(tl.streak, 0, '보호권 없이 이틀 빠지면 끊김');
+  assert.equal(tl.best, 9, '보호받은 날은 세지 않고 이어짐 (7 + 2)');
+  const tl2 = L.journeyTimeline(recs, '2026-10-10');
+  assert.equal(tl2.streak, 9, '오늘(10일) 아직 안 눌렀으면 어제까지 이어짐');
+  assert.equal(tl2.shields, 0);
+  // 보호권 최대 2개
+  const long = buildRecs('2026-01-01', 30, []);
+  const t3 = L.journeyTimeline(long, '2026-01-30');
+  assert.equal(t3.shields, 2); assert.equal(t3.nextShieldIn, null);
+  assert.equal(L.journeyTimeline(buildRecs('2026-01-01', 5, []), '2026-01-05').nextShieldIn, 2);
+  // 연속이 없을 땐 보호권을 쓰지 않음
+  assert.deepEqual(L.journeyTimeline([], '2026-01-05').days, []);
+});
+
+test('연출 단계·다음 연출, 하늘 확률(목표 지킨 날이 더 드문 하늘)', () => {
+  assert.deepEqual([1, 2, 3, 6, 7, 13, 14, 29, 30, 99].map(L.effectTier), [0, 0, 1, 1, 2, 2, 3, 3, 4, 4]);
+  assert.deepEqual(L.nextEffect(5), { at: 7, label: '햇살', left: 2 });
+  assert.equal(L.nextEffect(30), null);
+  const rate = (hit, streak) => { const r = L.mulberry32(7); let rare = 0; for (let i = 0; i < 20000; i++) if (L.skyById(L.pickSky(r, hit, streak, 0)).tier >= 2) rare++; return rare / 20000; };
+  const base = rate(false, 0), good = rate(true, 10);
+  assert.ok(base > 0.15 && base < 0.21, '기본 드묾 이상 약 18%: ' + base);
+  assert.ok(good > base + 0.08, '목표 지키고 연속이면 더 자주: ' + good);
+  assert.equal(L.SKIES.length, 12);
+});
+
+test('주간 리포트(지난 월~일)와 방 함께 켜기', () => {
+  const recs = buildRecs('2026-10-26', 14, [3], i => (i < 7 ? '07:30' : '07:10'));   // 10/26(월)~11/8(일)
+  const r = L.weekRecap(recs, '2026-11-10', null);   // 11/10(화) → 지난주 11/2~11/8
+  assert.equal(r.from, '2026-11-02'); assert.equal(r.to, '2026-11-08');
+  assert.equal(r.days, 7); assert.equal(r.prevDays, 6);
+  assert.equal(r.avg, 430); assert.equal(r.prevAvg, 450); assert.equal(r.diff, -20);
+  assert.equal(r.skies.length, 7);
+  assert.equal(L.weekRecap(recs, '2026-11-25', null), null, '지난주 기록 없으면 없음');
+  const view = { members: [
+    { me: true, start_min: null, joined: '2026-11-01', week: [420, 425, 430, null, 420, 430, null] },
+    { me: false, start_min: 450, joined: '2026-11-01', week: [440, 445, 450, 455, -1, 430, 450] },
+    { me: false, start_min: null, joined: '2026-11-08', week: [null, null, null, null, null, 470, null] }
+  ] };
+  const t = L.roomTogether(view, '2026-11-09', 431);
+  assert.equal(t.lit, 2); assert.equal(t.total, 3); assert.equal(t.allLitToday, false);
+  // 11/3,11/4,11/5: 두 명(셋째는 11/8에 들어옴) 모두 켬 → 3일. 11/7은 쉬는 날(-1)이라 아님. 11/8은 셋 다 켬 → 4일
+  assert.equal(t.weekAllDays, 4);
+  assert.equal(L.roomTogether({ members: [view.members[0]] }, '2026-11-09', 431).allLitToday, false, '혼자면 축하 없음');
+});

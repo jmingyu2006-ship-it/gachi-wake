@@ -299,6 +299,125 @@
     var t = text.replace(/[\u0000-\u001F\u007F<>]/g, '').replace(/\s+/g, ' ').trim();
     return Array.from(t).slice(0, max).join('');
   }
+  // ---------- 여정: 오늘의 하늘(수집), 연속 기록과 보호권, 칭호 ----------
+  // 하늘 12종. tier 0 흔함 · 1 가끔 · 2 드묾 · 3 아주 드묾. 기록한 날마다 하나가 정해지고 바뀌지 않음.
+  var SKIES = [
+    { id: 'clear', name: '맑은 새벽', tier: 0, top: '#1D3B6E', mid: '#5E93CC', bot: '#FFD9A0', sun: '#FFE7A8' },
+    { id: 'blue', name: '파란 아침', tier: 0, top: '#0F2F63', mid: '#3E7DCC', bot: '#A9D6FF', sun: '#FFF4CF' },
+    { id: 'cloudy', name: '구름 낀 아침', tier: 0, top: '#323C57', mid: '#7F8AA5', bot: '#D9C8B2', sun: '#F3E3C7', fx: 'clouds' },
+    { id: 'mist', name: '안개 아침', tier: 0, top: '#46516B', mid: '#9EA8BD', bot: '#E9E3D8', sun: '#FFF1DC', fx: 'mist' },
+    { id: 'pink', name: '분홍빛 새벽', tier: 1, top: '#2A1F52', mid: '#C46A98', bot: '#FFC2A3', sun: '#FFE1C7' },
+    { id: 'gold', name: '금빛 아침', tier: 1, top: '#372849', mid: '#DD8740', bot: '#FFD36B', sun: '#FFF0B8' },
+    { id: 'afterrain', name: '비 갠 아침', tier: 1, top: '#294760', mid: '#79AFC6', bot: '#F1E5C8', sun: '#FFF6DD', fx: 'drops' },
+    { id: 'rainbow', name: '무지개 아침', tier: 2, top: '#284D78', mid: '#86BEE6', bot: '#FFF0C8', sun: '#FFF8E0', fx: 'rainbow' },
+    { id: 'stars', name: '별이 남은 새벽', tier: 2, top: '#0C1230', mid: '#3A3E79', bot: '#EFA67A', sun: '#FFD9B0', fx: 'stars' },
+    { id: 'halo', name: '햇무리', tier: 2, top: '#1E3C69', mid: '#76ADDF', bot: '#FFF2D0', sun: '#FFFBEA', fx: 'halo' },
+    { id: 'aurora', name: '오로라 새벽', tier: 3, top: '#051224', mid: '#12495A', bot: '#EFB57A', sun: '#FFE2B8', fx: 'aurora' },
+    { id: 'meteor', name: '유성우 새벽', tier: 3, top: '#090E25', mid: '#2D2969', bot: '#E6997A', sun: '#FFD6C2', fx: 'meteor' }
+  ];
+  var SKY_BY_ID = {}; SKIES.forEach(function (k) { SKY_BY_ID[k.id] = k; });
+  var TIER_NAMES = ['흔함', '가끔', '드묾', '아주 드묾'];
+  var TIER_W = [15, 8, 4, 2];
+  // 목표를 지킨 날은 드문 하늘이 더 잘 나오고, 연속 7일 이상이면 조금 더
+  function pickSky(rand, hit, streak, minTier) {
+    var HIT = [1, 1.2, 1.6, 1.8], RUN = [1, 1, 1.3, 1.2], pool = [], sum = 0;
+    SKIES.forEach(function (k) {
+      if (k.tier < (minTier || 0)) return;
+      var w = TIER_W[k.tier] * (hit ? HIT[k.tier] : 1) * (streak >= 7 ? RUN[k.tier] : 1);
+      pool.push([k.id, w]); sum += w;
+    });
+    var x = rand() * sum;
+    for (var i = 0; i < pool.length; i++) { x -= pool[i][1]; if (x < 0) return pool[i][0]; }
+    return pool[pool.length - 1][0];
+  }
+  var MILESTONES = [
+    { n: 3, title: '새벽 탐험가' }, { n: 7, title: '일주일의 리듬' }, { n: 14, title: '아침의 단골' }, { n: 21, title: '습관의 씨앗' },
+    { n: 30, title: '한 달의 빛' }, { n: 50, title: '반짝이는 건물' }, { n: 66, title: '습관 완성' }, { n: 100, title: '아침의 주인' }
+  ];
+  var MS_AT = {}; MILESTONES.forEach(function (m) { MS_AT[m.n] = m; });
+  var MAX_SHIELDS = 2, SHIELD_EVERY = 7;
+  // 연속 기록에 따라 불 켜는 연출이 풍성해짐
+  var EFFECTS = [
+    { at: 1, label: '불빛' }, { at: 3, label: '아침 새' }, { at: 7, label: '햇살' }, { at: 14, label: '별똥별' }, { at: 30, label: '금빛 고리' }
+  ];
+  function effectTier(streak) { var t = 0; EFFECTS.forEach(function (e, i) { if (streak >= e.at) t = i; }); return t; }
+  function nextEffect(streak) { for (var i = 0; i < EFFECTS.length; i++) if (EFFECTS[i].at > streak) return { at: EFFECTS[i].at, label: EFFECTS[i].label, left: EFFECTS[i].at - streak }; return null; }
+
+  // 첫 기록부터 오늘까지 하루씩: 기록한 날(하늘·연속·칭호·보호권 얻음), 보호권으로 지킨 날, 끊긴 날
+  // 보호권: 기록 7일마다 1개(최대 2개). 지난 날을 빠뜨리면 연속 중일 때 자동으로 1개 써서 연속을 이어 줌.
+  function journeyTimeline(records, todayKey) {
+    var recs = cleanRecords(records).filter(function (r) { return r.date <= todayKey; });
+    var out = { days: [], streak: 0, best: 0, shields: 0, restDays: [], journeyDays: 0, skyCounts: {}, nextShieldIn: SHIELD_EVERY, titles: [] };
+    if (!recs.length) return out;
+    var byDate = {}; recs.forEach(function (r) { byDate[r.date] = r; });
+    var seed = String(recs[0].wokeAt || recs[0].date), d = recs[0].date, streak = 0, shields = 0, n = 0;
+    for (var g = 0; d <= todayKey && g < 5000; g++, d = addDays(d, 1)) {
+      var r = byDate[d];
+      if (r) {
+        n++; streak++;
+        var ev = evaluate(r), hit = ev.status === 'hit', ms = MS_AT[n] || null;
+        var sky = n === 1 ? 'gold' : pickSky(mulberry32(hashString(seed + '|' + d)), hit, streak, ms ? 2 : 0);
+        var earned = false;
+        if (n % SHIELD_EVERY === 0 && shields < MAX_SHIELDS) { shields++; earned = true; }
+        out.days.push({ date: d, rec: true, n: n, streak: streak, sky: sky, hit: hit, milestone: ms, shieldEarned: earned });
+        out.skyCounts[sky] = (out.skyCounts[sky] || 0) + 1;
+        if (ms) out.titles.push(ms);
+        if (streak > out.best) out.best = streak;
+      } else if (d < todayKey) {
+        if (streak > 0 && shields > 0) { shields--; out.restDays.push(d); out.days.push({ date: d, rest: true, streak: streak }); }
+        else streak = 0;
+      }
+    }
+    out.streak = streak; out.shields = shields; out.journeyDays = n;
+    out.nextShieldIn = shields >= MAX_SHIELDS ? null : SHIELD_EVERY - (n % SHIELD_EVERY);
+    return out;
+  }
+  function dayInfo(timeline, key) {
+    for (var i = timeline.days.length - 1; i >= 0; i--) if (timeline.days[i].date === key) return timeline.days[i];
+    return null;
+  }
+  function skyById(id) { return SKY_BY_ID[id] || SKY_BY_ID.clear; }
+
+  // 지난주(월~일) 리포트. 지난주에 기록이 없으면 null
+  function weekRecap(records, todayKey, timeline) {
+    var dow = dayOfWeek(todayKey), mon = addDays(todayKey, -((dow + 6) % 7)), lastMon = addDays(mon, -7), prevMon = addDays(mon, -14);
+    var recs = cleanRecords(records);
+    var pick = function (from) { var to = addDays(from, 6); return recs.filter(function (r) { return r.date >= from && r.date <= to; }); };
+    var w = pick(lastMon), p = pick(prevMon);
+    if (!w.length) return null;
+    var mins = w.map(function (r) { return r.minuteOfDay; }), avg = Math.round(mins.reduce(function (a, b) { return a + b; }, 0) / mins.length);
+    var pm = p.map(function (r) { return r.minuteOfDay; }), pavg = pm.length ? Math.round(pm.reduce(function (a, b) { return a + b; }, 0) / pm.length) : null;
+    var wob = mins.length >= 2 ? Math.round(mins.reduce(function (a, m) { return a + Math.abs(m - avg); }, 0) / mins.length) : null;
+    var tl = timeline || journeyTimeline(records, todayKey), skies = [];
+    w.forEach(function (r) { var di = dayInfo(tl, r.date); if (di && di.sky) skies.push(di.sky); });
+    return {
+      from: lastMon, to: addDays(lastMon, 6), days: w.length, prevDays: p.length,
+      hits: w.filter(function (r) { return evaluate(r).status === 'hit'; }).length,
+      avg: avg, prevAvg: pavg, diff: pavg === null ? null : avg - pavg, wobble: wob, skies: skies,
+      rests: tl.restDays.filter(function (d) { return d >= lastMon && d <= addDays(lastMon, 6); }).length
+    };
+  }
+
+  // 우리 방: 오늘 켜진 수, 이번 주(최근 7일) 모두 켠 날. 그날 이후에 들어온 사람은 그날 계산에서 뺌. 2명 이상일 때만.
+  function roomTogether(view, todayKey, myLocalMin) {
+    var ms = view && Array.isArray(view.members) ? view.members : [];
+    var on = function (v) { return isInt(v) && v >= 0; };
+    var lit = ms.filter(function (m) { return on(m.start_min) || (m.me && isInt(myLocalMin)); }).length;
+    var allDays = 0;
+    for (var k = 0; k < 7; k++) {
+      var day = addDays(todayKey, k - 6);
+      var el = ms.filter(function (m) { return !(typeof m.joined === 'string' && m.joined > day); });
+      if (el.length < 2) continue;
+      var all = el.every(function (m) {
+        var v = Array.isArray(m.week) ? m.week[k] : null;
+        if (k === 6 && m.me && isInt(myLocalMin)) return true;
+        return on(v);
+      });
+      if (all) allDays++;
+    }
+    return { lit: lit, total: ms.length, allLitToday: ms.length >= 2 && lit === ms.length, weekAllDays: allDays };
+  }
+
   // ---------- 내 기록: 연속 일수, 최근 n일, CSV 내보내기 ----------
   function localStreak(records, todayKey) {
     var has = {}; cleanRecords(records).forEach(function (r) { has[r.date] = true; });
@@ -424,10 +543,10 @@
     var raw = Array.isArray(m.week) ? m.week.slice(-7) : [];
     while (raw.length < 7) raw.unshift(null);
     var week = raw.map(function (v, i) {
-      var key = addDays(todayKey, i - 6), min = isInt(v) ? v : null;
-      return { key: key, label: DOW_KO[dayOfWeek(key)], isToday: i === 6, time: min === null ? null : formatMinute(min), status: statusFor(min, target) };
+      var key = addDays(todayKey, i - 6), rest = v === -1, min = isInt(v) && v >= 0 ? v : null;
+      return { key: key, label: DOW_KO[dayOfWeek(key)], isToday: i === 6, rest: rest, time: min === null ? null : formatMinute(min), status: rest ? 'rest' : statusFor(min, target) };
     });
-    var mins = raw.filter(isInt);
+    var mins = raw.filter(function (v) { return isInt(v) && v >= 0; });
     var joined = typeof m.joined === 'string' && DATE_RE.test(m.joined) ? m.joined : null;
     return {
       name: sanitizeName(String(m.nickname || ''), 10) || '?',
@@ -521,6 +640,9 @@
     normUsername: normUsername, validUsername: validUsername, validPassword: validPassword, cleanRooms: cleanRooms,
     accountData: accountData, mergeAccount: mergeAccount,
     localStreak: localStreak, recentDays: recentDays, recordsCsv: recordsCsv,
+    SKIES: SKIES, TIER_NAMES: TIER_NAMES, MILESTONES: MILESTONES, EFFECTS: EFFECTS, MAX_SHIELDS: MAX_SHIELDS,
+    pickSky: pickSky, skyById: skyById, journeyTimeline: journeyTimeline, dayInfo: dayInfo, effectTier: effectTier, nextEffect: nextEffect,
+    weekRecap: weekRecap, roomTogether: roomTogether, mulberry32: mulberry32,
     reminderStages: reminderStages, reminderIcs: reminderIcs, googleReminderUrl: googleReminderUrl, reminderSig: reminderSig,
     serverPayload: serverPayload, parseServerCounts: parseServerCounts, hashString: hashString
   };

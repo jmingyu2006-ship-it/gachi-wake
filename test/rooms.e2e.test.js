@@ -89,7 +89,11 @@ function mockServer() {
       if (t.anon === body.p_anon) return json({ error: 'cannot_kick_self' });
       st.bans.add(c + t.anon); return json({ ok: true });
     }
-    if (fn === 'app_info') return st.noFeatures ? json({ message: 'unknown' }, 404) : json({ v: 6, features: ['report', 'recovery', 'erase'] });
+    if (fn === 'app_info') return st.noFeatures ? json({ message: 'unknown' }, 404) : json({ v: 7, features: ['report', 'recovery', 'erase', 'rests'] });
+    if (fn === 'sync_rests') {
+      if (!st.members.some(m => m.anon === body.p_anon && !banned(m.code, m.anon))) return json(false);
+      st.rests = st.rests || new Set(); body.p_days.forEach(d => { if (!st.starts.has(body.p_anon + d)) st.rests.add(body.p_anon + d); }); return json(true);
+    }
     if (fn === 'send_report') {
       if (!['feedback', 'report', 'error'].includes(body.p_kind)) return json({ error: 'bad_request' });
       if (body.p_kind === 'feedback' && !String(body.p_body || '').trim()) return json({ error: 'empty' });
@@ -164,7 +168,8 @@ function mockServer() {
           const day = body.p_day, has = (d) => st.starts.has(m.anon + d);
           let a = has(day) ? day : addDay(day, -1), streak = 0;
           while (has(a)) { streak++; a = addDay(a, -1); }
-          const week = [0, 1, 2, 3, 4, 5, 6].map(k => has(addDay(day, k - 6)) ? st.starts.get(m.anon + addDay(day, k - 6)) : null);
+          const rest = (d) => !!(st.rests && st.rests.has(m.anon + d));
+          const week = [0, 1, 2, 3, 4, 5, 6].map(k => has(addDay(day, k - 6)) ? st.starts.get(m.anon + addDay(day, k - 6)) : (rest(addDay(day, k - 6)) ? -1 : null));
           let days30 = 0; for (let k = 0; k < 30; k++) if (has(addDay(day, -k))) days30++;
           return { key: mkey(m.anon, c), owner: m.anon === ownerOf(c), nickname: m.nick, me: m.anon === body.p_anon, start_min: has(day) ? st.starts.get(m.anon + day) : null,
             target_min: st.targets.has(m.anon) ? st.targets.get(m.anon) : null, joined: day, week, days30, streak };
@@ -201,6 +206,14 @@ async function onboard(page) {
 }
 const unit = (page, name) => page.locator('.unit', { hasText: name });
 
+// 하루 시작 → 불 켜기 연출이 뜨면 '확인'으로 닫기
+async function startDay(page) {
+  await page.getByRole('button', { name: '하루 시작하기' }).click();
+  await page.clock.runFor(400);
+  const cer = page.locator('#cer');
+  if (await cer.count()) await cer.getByRole('button', { name: '확인' }).click();
+}
+
 test('나와 친구: 방 만들기 → 초대 링크 → 친구 참여 → 서로의 창문이 이름·시각과 함께 켜진다', async () => {
   const srv = mockServer();
   // 나: 06:30에 방을 만든다
@@ -234,7 +247,7 @@ test('나와 친구: 방 만들기 → 초대 링크 → 친구 참여 → 서�
   await fr.getByRole('button', { name: '들어가기', exact: true }).click();
   await fr.getByText("'새벽반' 방에 들어왔어요.").waitFor();
   await fr.getByText('0명 / 2명이 하루를 시작했어요').waitFor();
-  await fr.getByRole('button', { name: '하루 시작하기' }).click();
+  await startDay(fr);
   await fr.clock.runFor(1600);
   await fr.getByText('1명 / 2명이 하루를 시작했어요').waitFor();
   assert.match(await unit(fr, '민수').textContent(), /06:42/);
@@ -249,11 +262,11 @@ test('나와 친구: 방 만들기 → 초대 링크 → 친구 참여 → 서�
   await me.screenshot({ path: path.join(SHOTS, '10-room-me-before.png') });
 
   // 나도 시작 → 친구 화면에 "민규" 켜짐
-  await me.getByRole('button', { name: '하루 시작하기' }).click();
+  await startDay(me);
   await me.clock.runFor(1600);
-  await me.getByText('2명 / 2명이 하루를 시작했어요').waitFor();
+  await me.getByText('모두 켜졌어요! 오늘 2명 전원 하루를 시작했어요').waitFor();
   await fr.clock.runFor(21000);
-  await fr.getByText('2명 / 2명이 하루를 시작했어요').waitFor();
+  await fr.getByText('모두 켜졌어요! 오늘 2명 전원 하루를 시작했어요').waitFor();
   assert.match(await unit(fr, '민규').textContent(), /민규06:3\d/);
   await fr.clock.runFor(1500);
   await fr.screenshot({ path: path.join(SHOTS, '11-room-friend.png') });
@@ -291,7 +304,7 @@ test('이미 하루를 시작한 뒤에 방에 들어가도 내 시각이 방에
   const code = [...srv.st.rooms.keys()][0];
   const b = await person('2026-11-09T07:05:00', srv);
   await onboard(b);
-  await b.getByRole('button', { name: '하루 시작하기' }).click();      // 먼저 시작
+  await startDay(b);      // 먼저 시작
   await b.clock.runFor(1600);
   await b.goto(BASE + '?room=' + code);                                 // 그다음 초대 링크
   await b.getByLabel('방에서 보일 내 이름 (10자까지)').fill('하준');
@@ -345,7 +358,7 @@ test('프로필: 친구 창문을 누르면 연속 기상·목표·최근 7일�
   await me.getByRole('button', { name: '닫기' }).click();
 
   // 친구가 오늘 시작하면 연속 6일
-  await fr.getByRole('button', { name: '하루 시작하기' }).click();
+  await startDay(fr);
   await fr.clock.runFor(1600);
   await me.clock.runFor(21000);
   await me.locator('.unit', { hasText: '민수' }).click();
@@ -434,7 +447,7 @@ test('계정: 한 기기에서 가입 → 다른 기기에서 로그인하면 �
   const srv = mockServer();
   const a = await person('2026-11-09T07:05:00', srv);
   await onboard(a);
-  await a.getByRole('button', { name: '하루 시작하기' }).click();
+  await startDay(a);
   await a.clock.runFor(1600);
   await a.getByRole('button', { name: '+ 방 만들기' }).click();
   await a.getByLabel('방 이름 (20자까지)').fill('새벽반');
@@ -485,7 +498,7 @@ test('계정: 한 기기에서 가입 → 다른 기기에서 로그인하면 �
   await b.getByText('1명 / 1명이 하루를 시작했어요').waitFor();
   assert.equal(await b.locator('.unit.me.on').count(), 1, '같은 사람으로 이어짐');
   await b.getByRole('button', { name: '습관' }).click();
-  await b.getByText('1 / 66일').waitFor();
+  await b.getByText('1 / 66', { exact: true }).waitFor();
   // 로그아웃 → 처음 화면
   await b.getByRole('button', { name: '목표 설정 열기' }).click();
   await b.getByText('@minkyu_01').waitFor();
@@ -659,7 +672,7 @@ test('도움: 친구 신고(운영자에게만), 의견 보내기, 서버의 내
   await fr.getByRole('button', { name: '신고 보내기' }).click();
   await fr.getByText('신고를 보냈어요. 확인해 볼게요.').waitFor();
   const rp = srv.st.reports.find(r => r.p_kind === 'report');
-  assert.equal(rp.target_name, '민규'); assert.equal(rp.p_reason, '부적절한 이름'); assert.equal(rp.p_room, code); assert.match(rp.p_meta, /^v0\.6\.0 · web · /);
+  assert.equal(rp.target_name, '민규'); assert.equal(rp.p_reason, '부적절한 이름'); assert.equal(rp.p_room, code); assert.match(rp.p_meta, /^v0\.7\.0 · web · /);
   // 내 프로필에는 신고 버튼 없음
   await unit(fr, '민수').click();
   assert.equal(await fr.locator('#sheetBody').getByRole('button', { name: '신고하기' }).count(), 0);
@@ -691,7 +704,7 @@ test('복구 코드: 가입 때 한 번 보여주고, 다른 기기에서 비밀
   const srv = mockServer();
   const a = await person('2026-11-09T07:05:00', srv);
   await onboard(a);
-  await a.getByRole('button', { name: '하루 시작하기' }).click();
+  await startDay(a);
   await a.clock.runFor(1600);
   await featuresReady(a);
   await a.getByRole('button', { name: '목표 설정 열기' }).click();
@@ -725,7 +738,7 @@ test('복구 코드: 가입 때 한 번 보여주고, 다른 기기에서 비밀
   assert.notEqual(code2, code, '코드는 한 번 쓰면 바뀜');
   await Promise.all([b.waitForEvent('load'), b.getByRole('button', { name: '저장했어요' }).click()]);
   await b.getByRole('button', { name: '습관' }).click();
-  await b.getByText('1 / 66일').waitFor();
+  await b.getByText('1 / 66', { exact: true }).waitFor();
   assert.equal(srv.st.accounts.get('minkyu_01').pw, 'newpass99');
   assert.deepEqual(a.errors, []); assert.deepEqual(b.errors, []);
   await a.context().close(); await b.context().close();
@@ -753,6 +766,44 @@ test('서버에 새 기능이 아직 없으면 버튼이 숨고, 화면 오류�
   await new Promise(r => setTimeout(r, 300));
   const errs = on.st.reports.filter(r => r.p_kind === 'error');
   assert.deepEqual(errs.map(e => e.p_body), ['boom-0', 'boom-1', 'boom-2']);
-  assert.match(errs[0].p_meta, /v0\.6\.0/);
+  assert.match(errs[0].p_meta, /v0\.7\.0/);
   await q.context().close();
+});
+
+test('보호권으로 쉰 날이 방에도 올라가 친구 프로필에서 방패 칸으로 보이고, 연속이 이어진다', async () => {
+  const srv = mockServer();
+  // 친구: 11/1~11/7 기록(보호권 1개), 11/8 빠짐(보호), 11/9 기록 예정
+  const fr = await person('2026-11-09T06:50:00', srv);
+  await fr.evaluate(() => {
+    const p2 = (n) => String(n).padStart(2, '0');
+    const recs = [1, 2, 3, 4, 5, 6, 7].map(d => { const k = '2026-11-' + p2(d); return { id: 'w-' + k, date: k, wokeAt: k + 'T07:00:00+09:00', minuteOfDay: 420, cohort: '07:00', dayTarget: 420, actionDoneAt: null, greetedAt: null }; });
+    localStorage.setItem('gachi-v2-settings', JSON.stringify({ version: 2, baselineMin: 420, targetMin: 420, planStart: '2026-10-01', sleepNeedH: 8, firstAction: '물 한 잔 마시기', age: '20' }));
+    localStorage.setItem('gachi-v2-records', JSON.stringify(recs));
+  });
+  await fr.reload();
+  await featuresReady(fr);
+  await fr.getByRole('button', { name: '+ 방 만들기' }).click();
+  await fr.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민수');
+  await fr.getByRole('button', { name: '방 만들기', exact: true }).click();
+  await fr.getByText("'우리 방' 방을 만들었어요").waitFor();
+  await fr.getByRole('button', { name: '닫기' }).click();
+  for (let i = 0; i < 30 && !(srv.st.rests && srv.st.rests.size); i++) await fr.clock.runFor(200);
+  assert.equal(srv.st.rests.size, 1, '쉰 날 하루가 서버로');
+  const code = [...srv.st.rooms.keys()][0];
+  const me = await person('2026-11-09T07:10:00', srv, BASE + '?room=' + code);
+  await onboard(me);
+  await me.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민규');
+  await me.getByRole('button', { name: '들어가기', exact: true }).click();
+  await me.getByText('0명 / 2명이 하루를 시작했어요').waitFor();
+  await unit(me, '민수').click();
+  assert.equal(await me.locator('#sheetBody .cell.rest').count(), 1, '11/8 칸이 방패');
+  assert.equal(await me.locator('#sheetBody .cell.hit').count(), 5, '11/3~11/7');
+  await me.getByRole('button', { name: '닫기' }).click();
+  // 친구 쪽: 내 프로필 연속 7일(오늘 아직) · 방패 칸
+  await unit(fr, '민수').click();
+  await fr.locator('#sheetBody .stat-num').first().waitFor();
+  assert.equal(await fr.locator('#sheetBody .stat-num').first().textContent(), '7일', '보호권 덕에 연속 7일 (11/8은 세지 않고 이어짐)');
+  assert.equal(await fr.locator('#sheetBody .cell.rest').count(), 1);
+  assert.deepEqual(me.errors, []); assert.deepEqual(fr.errors, []);
+  await me.context().close(); await fr.context().close();
 });
