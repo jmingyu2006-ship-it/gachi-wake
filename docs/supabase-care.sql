@@ -120,14 +120,15 @@ end; $$;
 -- ---------- 4) 오래된 기록 정리 ----------
 create or replace function private.purge_old()
 returns json language plpgsql volatile security definer set search_path = public, private as $$
-declare t date := (now() at time zone 'Asia/Seoul')::date; a int; b int; c int; e int; f int;
+declare t date := (now() at time zone 'Asia/Seoul')::date; a int; b int; c int; e int; f int; g int;
 begin
   delete from private.room_attempts where day < t - 7;          get diagnostics a = row_count;
   delete from private.login_fails where day < t - 7;            get diagnostics b = row_count;
   update public.wake_events set ip_hash = null where ip_hash is not null and day < t - 30;  get diagnostics c = row_count;
   delete from public.wake_events where day < t - 365;           get diagnostics e = row_count;
   update private.reports set ip_hash = null where ip_hash is not null and created_at < now() - interval '90 days';  get diagnostics f = row_count;
-  return json_build_object('room_attempts', a, 'login_fails', b, 'wake_ip_cleared', c, 'wake_deleted', e, 'report_ip_cleared', f);
+  delete from private.reports where created_at < now() - interval '1 year';  get diagnostics g = row_count;
+  return json_build_object('room_attempts', a, 'login_fails', b, 'wake_ip_cleared', c, 'wake_deleted', e, 'report_ip_cleared', f, 'report_deleted', g);
 end; $$;
 
 -- ---------- 5) 앱이 쓸 수 있는 기능 ----------

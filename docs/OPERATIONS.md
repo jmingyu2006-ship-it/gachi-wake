@@ -96,7 +96,7 @@ select status, return_message, start_time from cron.job_run_details order by sta
 ```sql
 select private.purge_old();
 ```
-지우는 것: 7일 지난 시도·로그인 실패 횟수, 30일 지난 IP 해시, 1년 지난 창문 기록, 90일 지난 신고의 IP 해시.
+지우는 것: 7일 지난 시도·로그인 실패 횟수, 30일 지난 IP 해시, 1년 지난 창문 기록, 90일 지난 신고의 IP 해시, 1년 지난 의견·신고·오류.
 
 ### 1년 넘게 안 쓴 계정 (처리방침: 미리 알린 뒤 정리 가능)
 ```sql
