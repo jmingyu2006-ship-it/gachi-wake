@@ -208,10 +208,10 @@ function mockServer() {
 async function person(isoLocal, srv, url) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: 'Asia/Seoul', locale: 'ko-KR', serviceWorkers: 'block' });
   await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: BASE.replace(/\/$/, '') });
-  const page = await context.newPage();
+  const page = await context.newPage(); page.setDefaultTimeout(+process.env.PWT || 30000);
   page.errors = [];
   page.on('pageerror', e => page.errors.push(e.message));
-  await page.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+  await page.route(/fonts\.(googleapis|gstatic)\.com|cdn\.jsdelivr\.net/, r => r.abort());
   await srv.attach(page);
   await page.addInitScript(() => { Object.defineProperty(navigator, 'share', { value: undefined, configurable: true }); });
   await page.clock.install({ time: new Date(isoLocal + '+09:00') });
@@ -225,11 +225,14 @@ async function onboard(page) {
   await page.getByRole('button', { name: '20대' }).click();
   await page.getByRole('button', { name: '시작하기' }).click();
 }
-const unit = (page, name) => page.locator('.unit', { hasText: name });
+const unit = (page, name) => page.locator('.unit[aria-label^="' + name + ',"], .unit[aria-label^="' + name + ' (나)"]');
+// 건물 이름(한 줄 선택)을 누르면 방 메뉴·건물 목록 시트
+async function openMenu(page) { await page.locator('#viewSel').click(); await page.locator('#sheetBody [data-view]').first().waitFor(); }
+async function pick(page, name) { await openMenu(page); await page.locator('#sheetBody [data-view]', { hasText: name }).click(); }
 
 // 하루 시작 → 불 켜기 연출이 뜨면 '확인'으로 닫기
 async function startDay(page) {
-  await page.getByRole('button', { name: '하루 시작하기' }).click();
+  await page.getByRole('button', { name: '하루 시작', exact: true }).click();
   await page.clock.runFor(400);
   const cer = page.locator('#cer');
   if (await cer.count()) await cer.getByRole('button', { name: '확인' }).click();
@@ -240,7 +243,7 @@ test('나와 친구: 방 만들기 → 초대 링크 → 친구 참여 → 서�
   // 나: 06:30에 방을 만든다
   const me = await person('2026-11-09T06:30:00', srv);
   await onboard(me);
-  await me.getByRole('button', { name: '+ 방 만들기' }).click();
+  await openMenu(me); await me.getByRole('button', { name: '+ 방 만들기' }).click();
   await me.getByLabel('방 이름 (20자까지)').fill('새벽반');
   await me.getByRole('button', { name: '방 만들기', exact: true }).click();
   await me.getByText('방에서 보일 이름을 적어 주세요.').waitFor();       // 빈 이름 막힘
@@ -255,8 +258,8 @@ test('나와 친구: 방 만들기 → 초대 링크 → 친구 참여 → 서�
   const code = invite.split('room=')[1];
   await me.getByRole('button', { name: '닫기' }).click();
   await me.getByRole('button', { name: '새벽반' }).waitFor();
-  await me.getByText('0명 / 1명이 하루를 시작했어요').waitFor();
-  assert.match(await unit(me, '민규').textContent(), /민규 \(나\)아직/);
+  await me.locator('#viewCount', { hasText: '0 / 1명 시작' }).waitFor();
+  assert.match(await unit(me, '민규').textContent(), /^나아직$/);
 
   // 친구: 초대 링크(공개 주소 대신 테스트 서버 주소 + 같은 코드)를 06:42에 연다
   const fr = await person('2026-11-09T06:42:00', srv, BASE + '?room=' + code.toUpperCase());
@@ -267,16 +270,16 @@ test('나와 친구: 방 만들기 → 초대 링크 → 친구 참여 → 서�
   await fr.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민수');
   await fr.getByRole('button', { name: '들어가기', exact: true }).click();
   await fr.getByText("'새벽반' 방에 들어왔어요.").waitFor();
-  await fr.getByText('0명 / 2명이 하루를 시작했어요').waitFor();
+  await fr.locator('#viewCount', { hasText: '0 / 2명 시작' }).waitFor();
   await startDay(fr);
   await fr.clock.runFor(1600);
-  await fr.getByText('1명 / 2명이 하루를 시작했어요').waitFor();
+  await fr.locator('#viewCount', { hasText: '1 / 2명 시작' }).waitFor();
   assert.match(await unit(fr, '민수').textContent(), /06:42/);
   assert.ok(await unit(fr, '민수').evaluate(e => e.classList.contains('on') && e.classList.contains('me')));
 
   // 나: 20초 뒤 새로 고침되면 친구 창문이 "민수 06:42"로 켜져 있다
   await me.clock.runFor(21000);
-  await me.getByText('1명 / 2명이 하루를 시작했어요').waitFor();
+  await me.locator('#viewCount', { hasText: '1 / 2명 시작' }).waitFor();
   assert.match(await unit(me, '민수').textContent(), /민수06:42/);
   assert.ok(await unit(me, '민수').evaluate(e => e.classList.contains('on') && !e.classList.contains('me')));
   await me.clock.runFor(1500);
@@ -285,27 +288,27 @@ test('나와 친구: 방 만들기 → 초대 링크 → 친구 참여 → 서�
   // 나도 시작 → 친구 화면에 "민규" 켜짐
   await startDay(me);
   await me.clock.runFor(1600);
-  await me.getByText('모두 켜졌어요! 오늘 2명 전원 하루를 시작했어요').waitFor();
+  await me.locator('#viewCount', { hasText: '모두 켜졌어요 · 2명' }).waitFor();
   await fr.clock.runFor(21000);
-  await fr.getByText('모두 켜졌어요! 오늘 2명 전원 하루를 시작했어요').waitFor();
+  await fr.locator('#viewCount', { hasText: '모두 켜졌어요 · 2명' }).waitFor();
   assert.match(await unit(fr, '민규').textContent(), /민규06:3\d/);
   await fr.clock.runFor(1500);
   await fr.screenshot({ path: path.join(SHOTS, '11-room-friend.png') });
 
   // 전체 사용자 건물: 이름 없이 2명
-  await me.getByRole('button', { name: '전체 사용자' }).click();
+  await pick(me, '전체 사용자');
   await me.clock.runFor(31000);
   await me.getByText('2명').first().waitFor();
   assert.equal(await me.locator('.unit').count(), 0, '전체 건물에는 이름이 없음');
 
   // 친구가 방을 나가면 내 방 건물에서 빠진다
-  await fr.getByRole('button', { name: '이 방 나가기' }).click();
+  await openMenu(fr); await fr.getByRole('button', { name: '이 방 나가기' }).click();
   await fr.getByRole('button', { name: '한 번 더 누르면 이 방에서 나가요' }).click();
   await fr.getByText("'새벽반' 방에서 나왔어요.").waitFor();
   assert.equal(await fr.getByRole('button', { name: '새벽반' }).count(), 0);
-  await me.getByRole('button', { name: '새벽반' }).click();
+  await pick(me, '새벽반');
   await me.clock.runFor(21000);
-  await me.getByText('1명 / 1명이 하루를 시작했어요').waitFor();
+  await me.locator('#viewCount', { hasText: '1 / 1명 시작' }).waitFor();
 
   // 서버로 보낸 값: 전체 건물엔 익명 id·날짜·구간만
   for (const w of srv.st.wakes.values()) assert.deepEqual(Object.keys(w).sort(), ['anon_id', 'bucket', 'day']);
@@ -318,7 +321,7 @@ test('이미 하루를 시작한 뒤에 방에 들어가도 내 시각이 방에
   const srv = mockServer();
   const a = await person('2026-11-09T06:00:00', srv);
   await onboard(a);
-  await a.getByRole('button', { name: '+ 방 만들기' }).click();
+  await openMenu(a); await a.getByRole('button', { name: '+ 방 만들기' }).click();
   await a.getByLabel('방에서 보일 내 이름 (10자까지)').fill('지원');
   await a.getByRole('button', { name: '방 만들기', exact: true }).click();
   await a.getByText('방을 만들었어요').waitFor();
@@ -330,7 +333,7 @@ test('이미 하루를 시작한 뒤에 방에 들어가도 내 시각이 방에
   await b.goto(BASE + '?room=' + code);                                 // 그다음 초대 링크
   await b.getByLabel('방에서 보일 내 이름 (10자까지)').fill('하준');
   await b.getByRole('button', { name: '들어가기', exact: true }).click();
-  await b.getByText('1명 / 2명이 하루를 시작했어요').waitFor();
+  await b.locator('#viewCount', { hasText: '1 / 2명 시작' }).waitFor();
   await b.clock.runFor(1500);
   assert.equal(srv.st.starts.size, 1, '들어오자마자 오늘 시작 시각을 방에 보냄');
   await a.clock.runFor(21000);
@@ -342,7 +345,7 @@ test('프로필: 친구 창문을 누르면 연속 기상·목표·최근 7일�
   const srv = mockServer();
   const me = await person('2026-11-09T06:30:00', srv);
   await onboard(me);
-  await me.getByRole('button', { name: '+ 방 만들기' }).click();
+  await openMenu(me); await me.getByRole('button', { name: '+ 방 만들기' }).click();
   await me.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민규');
   await me.getByRole('button', { name: '방 만들기', exact: true }).click();
   await me.getByText('방을 만들었어요').waitFor();
@@ -400,7 +403,7 @@ test('잘못된 초대 링크·이름 오류 안내', async () => {
   const p = await person('2026-11-09T07:00:00', srv, BASE + '?room=zzzzzz');
   await onboard(p);
   await p.getByText('방을 찾을 수 없어요').waitFor();
-  await p.getByRole('button', { name: '+ 방 만들기' }).click();
+  await openMenu(p); await p.getByRole('button', { name: '+ 방 만들기' }).click();
   await p.getByLabel('방에서 보일 내 이름 (10자까지)').fill('<b>');
   await p.getByLabel('방 이름 (20자까지)').fill('   ');
   await p.getByRole('button', { name: '방 만들기', exact: true }).click();
@@ -412,12 +415,12 @@ test('잘못된 초대 링크·이름 오류 안내', async () => {
 
 test('서버 없는 미리보기에서는 방 버튼이 보이지 않는다', async () => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: 'Asia/Seoul' });
-  const page = await context.newPage();
-  await page.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+  const page = await context.newPage(); page.setDefaultTimeout(+process.env.PWT || 30000);
+  await page.route(/fonts\.(googleapis|gstatic)\.com|cdn\.jsdelivr\.net/, r => r.abort());
   await page.clock.install({ time: new Date('2026-11-09T07:00:00+09:00') });
   await page.goto('file://' + path.join(__dirname, '../dist/artifact/index.html'));
   await onboard(page);
-  await page.getByRole('button', { name: '하루 시작하기' }).waitFor();
+  await page.getByRole('button', { name: '하루 시작', exact: true }).waitFor();
   assert.equal(await page.getByRole('button', { name: '+ 방 만들기' }).count(), 0);
   assert.equal(await page.getByRole('button', { name: '코드로 들어가기' }).count(), 0);
   await context.close();
@@ -427,7 +430,7 @@ test('방장: 친구를 내보내면 친구 화면에서 방이 사라지고 다
   const srv = mockServer();
   const me = await person('2026-11-09T06:30:00', srv);
   await onboard(me);
-  await me.getByRole('button', { name: '+ 방 만들기' }).click();
+  await openMenu(me); await me.getByRole('button', { name: '+ 방 만들기' }).click();
   await me.getByLabel('방 이름 (20자까지)').fill('새벽반');
   await me.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민규');
   await me.getByRole('button', { name: '방 만들기', exact: true }).click();
@@ -438,7 +441,7 @@ test('방장: 친구를 내보내면 친구 화면에서 방이 사라지고 다
   await onboard(fr);
   await fr.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민수');
   await fr.getByRole('button', { name: '들어가기', exact: true }).click();
-  await fr.getByText('0명 / 2명이 하루를 시작했어요').waitFor();
+  await fr.locator('#viewCount', { hasText: '0 / 2명 시작' }).waitFor();
   // 친구가 보는 방장 표시, 내보내기 버튼 없음
   await fr.locator('.unit', { hasText: '민규' }).click();
   await fr.locator('#sheetBody .tag', { hasText: '방장' }).waitFor();
@@ -450,7 +453,7 @@ test('방장: 친구를 내보내면 친구 화면에서 방이 사라지고 다
   await me.getByRole('button', { name: '이 방에서 내보내기' }).click();
   await me.getByRole('button', { name: '한 번 더 누르면 민수 님을 내보내요' }).click();
   await me.getByText('민수 님을 내보냈어요.').waitFor();
-  await me.getByText('0명 / 1명이 하루를 시작했어요').waitFor();
+  await me.locator('#viewCount', { hasText: '0 / 1명 시작' }).waitFor();
   // 친구 화면: 다음 새로 고침에 방이 사라짐
   await fr.clock.runFor(21000);
   await fr.getByText("'새벽반' 방에서 나가게 됐어요.").waitFor();
@@ -470,14 +473,14 @@ test('계정: 한 기기에서 가입 → 다른 기기에서 로그인하면 �
   await onboard(a);
   await startDay(a);
   await a.clock.runFor(1600);
-  await a.getByRole('button', { name: '+ 방 만들기' }).click();
+  await openMenu(a); await a.getByRole('button', { name: '+ 방 만들기' }).click();
   await a.getByLabel('방 이름 (20자까지)').fill('새벽반');
   await a.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민규');
   await a.getByRole('button', { name: '방 만들기', exact: true }).click();
   await a.getByText('방을 만들었어요').waitFor();
   await a.getByRole('button', { name: '닫기' }).click();
   // 가입 (오류 먼저)
-  await a.getByRole('button', { name: '목표 설정 열기' }).click();
+  await a.getByRole('button', { name: '설정 열기' }).click();
   await a.getByRole('button', { name: '가입하기' }).click();
   await a.getByLabel(/^아이디/).fill('ab');
   await a.getByLabel('비밀번호 (8자 이상)').fill('pass1234');
@@ -513,15 +516,15 @@ test('계정: 한 기기에서 가입 → 다른 기기에서 로그인하면 �
   await b.getByLabel('비밀번호 (8자 이상)').fill('pass1234');
   await b.locator('#accGo').click();
   await b.waitForLoadState('load');
-  await b.getByRole('button', { name: '새벽반' }).waitFor();
+  await b.locator('#viewSel').waitFor();
   assert.equal(await b.locator('#ob').isVisible(), false, '다시 목표를 정하지 않아도 됨');
-  await b.getByRole('button', { name: '새벽반' }).click();
-  await b.getByText('1명 / 1명이 하루를 시작했어요').waitFor();
+  await pick(b, '새벽반');
+  await b.locator('#viewCount', { hasText: '1 / 1명 시작' }).waitFor();
   assert.equal(await b.locator('.unit.me.on').count(), 1, '같은 사람으로 이어짐');
-  await b.getByRole('button', { name: '습관' }).click();
+  await b.getByRole('button', { name: '기록', exact: true }).click();
   await b.getByText('1 / 66', { exact: true }).waitFor();
   // 로그아웃 → 처음 화면
-  await b.getByRole('button', { name: '목표 설정 열기' }).click();
+  await b.getByRole('button', { name: '설정 열기' }).click();
   await b.getByText('@minkyu_01').waitFor();
   await b.getByRole('button', { name: '로그아웃' }).click();
   await b.getByRole('button', { name: '한 번 더 누르면 로그아웃' }).click();
@@ -535,7 +538,7 @@ test('초대 코드만 쳐서 들어가기: 틀린 코드 안내 → 대문자·
   const srv = mockServer();
   const me = await person('2026-11-09T06:30:00', srv);
   await onboard(me);
-  await me.getByRole('button', { name: '+ 방 만들기' }).click();
+  await openMenu(me); await me.getByRole('button', { name: '+ 방 만들기' }).click();
   await me.getByLabel('방 이름 (20자까지)').fill('새벽반');
   await me.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민규');
   await me.getByRole('button', { name: '방 만들기', exact: true }).click();
@@ -547,7 +550,7 @@ test('초대 코드만 쳐서 들어가기: 틀린 코드 안내 → 대문자·
   // 친구: 링크 없이 사이트만 열고 코드를 친다
   const fr = await person('2026-11-09T06:40:00', srv);
   await onboard(fr);
-  await fr.getByRole('button', { name: '코드로 들어가기' }).click();
+  await openMenu(fr); await fr.getByRole('button', { name: '코드로 들어가기' }).click();
   const input = fr.getByLabel('초대 코드 (6자리)');
   await input.fill('abc');
   await fr.getByRole('button', { name: '다음' }).click();
@@ -564,16 +567,16 @@ test('초대 코드만 쳐서 들어가기: 틀린 코드 안내 → 대문자·
   await fr.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민수');
   await fr.getByRole('button', { name: '들어가기', exact: true }).click();
   await fr.getByText("'새벽반' 방에 들어왔어요.").waitFor();
-  await fr.getByText('0명 / 2명이 하루를 시작했어요').waitFor();
+  await fr.locator('#viewCount', { hasText: '0 / 2명 시작' }).waitFor();
   assert.equal(srv.st.members.filter(m => m.code === code).length, 2);
 
   // 이미 들어와 있는 방 코드 → 그 방으로 이동
-  await fr.getByRole('button', { name: '전체 사용자' }).click();
-  await fr.getByRole('button', { name: '코드로 들어가기' }).click();
+  await pick(fr, '전체 사용자');
+  await openMenu(fr); await fr.getByRole('button', { name: '코드로 들어가기' }).click();
   await fr.getByLabel('초대 코드 (6자리)').fill(code);
   await fr.getByRole('button', { name: '다음' }).click();
   await fr.getByText('이미 들어와 있는 방이에요.').waitFor();
-  assert.equal(await fr.getByRole('button', { name: '새벽반' }).getAttribute('aria-pressed'), 'true');
+  await fr.locator('#viewSel', { hasText: '새벽반' }).waitFor();
   assert.equal(srv.st.members.filter(m => m.code === code).length, 2, '두 번 들어가지 않음');
   assert.deepEqual(me.errors, []); assert.deepEqual(fr.errors, []);
   await me.context().close(); await fr.context().close();
@@ -584,7 +587,7 @@ test('내 이름 바꾸기: 모든 방에 / 이 방에서만, 친구 화면에�
   const me = await person('2026-11-09T06:30:00', srv);
   await onboard(me);
   for (const name of ['새벽반', '스터디']) {
-    await me.getByRole('button', { name: '+ 방 만들기' }).click();
+    await openMenu(me); await me.getByRole('button', { name: '+ 방 만들기' }).click();
     await me.getByLabel('방 이름 (20자까지)').fill(name);
     await me.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민규');
     await me.getByRole('button', { name: '방 만들기', exact: true }).click();
@@ -596,14 +599,14 @@ test('내 이름 바꾸기: 모든 방에 / 이 방에서만, 친구 화면에�
   await onboard(fr);
   await fr.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민수');
   await fr.getByRole('button', { name: '들어가기', exact: true }).click();
-  await fr.getByText('0명 / 2명이 하루를 시작했어요').waitFor();
+  await fr.locator('#viewCount', { hasText: '0 / 2명 시작' }).waitFor();
   // 친구 프로필에는 이름 바꾸기 없음
   await unit(fr, '민규').click();
   assert.equal(await fr.getByRole('button', { name: '이름 바꾸기' }).count(), 0);
   await fr.getByRole('button', { name: '닫기' }).click();
 
   // 나: 새벽반에서 내 창문 → 이름 바꾸기 (모든 방)
-  await me.getByRole('button', { name: '새벽반' }).click();
+  await pick(me, '새벽반');
   await me.clock.runFor(21000);
   await unit(me, '민규').click();
   await me.getByRole('button', { name: '이름 바꾸기' }).click();
@@ -631,7 +634,7 @@ test('내 이름 바꾸기: 모든 방에 / 이 방에서만, 친구 화면에�
   await me.getByText("이름을 '민규'(으)로 바꿨어요.").waitFor();
   assert.deepEqual(srv.st.members.map(m => [srv.st.rooms.get(m.code), m.nick]).sort(), [['새벽반', '민규'], ['새벽반', '민수'], ['스터디', '일찍새']].sort());
   // 새로 만드는 방에는 마지막 이름이 미리 채워짐
-  await me.getByRole('button', { name: '+ 방 만들기' }).click();
+  await openMenu(me); await me.getByRole('button', { name: '+ 방 만들기' }).click();
   assert.equal(await me.getByLabel('방에서 보일 내 이름 (10자까지)').inputValue(), '민규');
   assert.deepEqual(me.errors, []); assert.deepEqual(fr.errors, []);
   await me.context().close(); await fr.context().close();
@@ -645,7 +648,7 @@ test('10대: 방은 만 14세 이상 확인 후에만 만들 수 있고, 한 번
   await p.getByRole('button', { name: '다음' }).click();
   await p.getByRole('button', { name: '10대' }).click();
   await p.getByRole('button', { name: '시작하기' }).click();
-  await p.getByRole('button', { name: '+ 방 만들기' }).click();
+  await openMenu(p); await p.getByRole('button', { name: '+ 방 만들기' }).click();
   await p.getByLabel('방에서 보일 내 이름 (10자까지)').fill('지우');
   await p.getByRole('button', { name: '방 만들기', exact: true }).click();
   await p.getByText('방은 만 14세 이상만 만들거나 들어갈 수 있어요.').waitFor();
@@ -654,10 +657,10 @@ test('10대: 방은 만 14세 이상 확인 후에만 만들 수 있고, 한 번
   await p.getByRole('button', { name: '방 만들기', exact: true }).click();
   await p.getByText("'우리 방' 방을 만들었어요").waitFor();
   await p.getByRole('button', { name: '닫기' }).click();
-  await p.getByRole('button', { name: '코드로 들어가기' }).click();
+  await openMenu(p); await p.getByRole('button', { name: '코드로 들어가기' }).click();
   await p.getByLabel('초대 코드 (6자리)').fill('zzzzzz');
   await p.getByRole('button', { name: '닫기' }).click();
-  await p.getByRole('button', { name: '+ 방 만들기' }).click();
+  await openMenu(p); await p.getByRole('button', { name: '+ 방 만들기' }).click();
   assert.equal(await p.getByLabel(/만 14세 이상이에요/).count(), 0, '다시 묻지 않음');
   assert.deepEqual(p.errors, []);
   await p.context().close();
@@ -669,7 +672,7 @@ test('도움: 친구 신고(운영자에게만), 의견 보내기, 서버의 내
   const srv = mockServer();
   const me = await person('2026-11-09T06:30:00', srv);
   await onboard(me);
-  await me.getByRole('button', { name: '+ 방 만들기' }).click();
+  await openMenu(me); await me.getByRole('button', { name: '+ 방 만들기' }).click();
   await me.getByLabel('방 이름 (20자까지)').fill('새벽반');
   await me.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민규');
   await me.getByRole('button', { name: '방 만들기', exact: true }).click();
@@ -680,7 +683,7 @@ test('도움: 친구 신고(운영자에게만), 의견 보내기, 서버의 내
   await onboard(fr);
   await fr.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민수');
   await fr.getByRole('button', { name: '들어가기', exact: true }).click();
-  await fr.getByText('0명 / 2명이 하루를 시작했어요').waitFor();
+  await fr.locator('#viewCount', { hasText: '0 / 2명 시작' }).waitFor();
   await featuresReady(fr);
   // 친구가 방장(민규)을 신고
   await unit(fr, '민규').click();
@@ -693,14 +696,14 @@ test('도움: 친구 신고(운영자에게만), 의견 보내기, 서버의 내
   await fr.getByRole('button', { name: '신고 보내기' }).click();
   await fr.getByText('신고를 보냈어요. 확인해 볼게요.').waitFor();
   const rp = srv.st.reports.find(r => r.p_kind === 'report');
-  assert.equal(rp.target_name, '민규'); assert.equal(rp.p_reason, '부적절한 이름'); assert.equal(rp.p_room, code); assert.match(rp.p_meta, /^v0\.9\.0 · web · /);
+  assert.equal(rp.target_name, '민규'); assert.equal(rp.p_reason, '부적절한 이름'); assert.equal(rp.p_room, code); assert.match(rp.p_meta, /^v0\.11\.0 · web · /);
   // 내 프로필에는 신고 버튼 없음
   await unit(fr, '민수').click();
   assert.equal(await fr.locator('#sheetBody').getByRole('button', { name: '신고하기' }).count(), 0);
   await fr.getByRole('button', { name: '닫기' }).click();
   // 의견 보내기
   await featuresReady(me);
-  await me.getByRole('button', { name: '목표 설정 열기' }).click();
+  await me.getByRole('button', { name: '설정 열기' }).click();
   await me.getByRole('button', { name: '의견·문의 보내기' }).click();
   await me.getByRole('button', { name: '보내기', exact: true }).click();
   await me.getByText('내용을 적어 주세요.').waitFor();
@@ -709,14 +712,14 @@ test('도움: 친구 신고(운영자에게만), 의견 보내기, 서버의 내
   await me.getByText('보냈어요. 고마워요!').waitFor();
   assert.equal(srv.st.reports.find(r => r.p_kind === 'feedback').p_body, '알림 기능이 있으면 좋겠어요');
   // 친구: 서버의 내 기록 지우기 → 방에서 나감
-  await fr.getByRole('button', { name: '목표 설정 열기' }).click();
+  await fr.getByRole('button', { name: '설정 열기' }).click();
   await fr.getByRole('button', { name: '서버에 있는 내 기록 지우기' }).click();
   await fr.getByRole('button', { name: '한 번 더 누르면 서버의 내 기록을 지워요' }).click();
   await fr.getByText('서버에 있는 내 기록을 지웠어요. 방에서도 모두 나갔어요.').waitFor();
   assert.equal(await fr.getByRole('button', { name: '새벽반' }).count(), 0);
   assert.equal(srv.st.members.filter(m => m.code === code).length, 1);
   await me.clock.runFor(21000);
-  await me.getByText('0명 / 1명이 하루를 시작했어요').waitFor();
+  await me.locator('#viewCount', { hasText: '0 / 1명 시작' }).waitFor();
   assert.deepEqual(me.errors, []); assert.deepEqual(fr.errors, []);
   await me.context().close(); await fr.context().close();
 });
@@ -728,7 +731,7 @@ test('복구 코드: 가입 때 한 번 보여주고, 다른 기기에서 비밀
   await startDay(a);
   await a.clock.runFor(1600);
   await featuresReady(a);
-  await a.getByRole('button', { name: '목표 설정 열기' }).click();
+  await a.getByRole('button', { name: '설정 열기' }).click();
   await a.getByRole('button', { name: '가입하기' }).click();
   await a.getByLabel(/^아이디/).fill('minkyu_01');
   await a.getByLabel('비밀번호 (8자 이상)').fill('pass1234');
@@ -758,7 +761,7 @@ test('복구 코드: 가입 때 한 번 보여주고, 다른 기기에서 비밀
   const code2 = await b.locator('#recCode').textContent();
   assert.notEqual(code2, code, '코드는 한 번 쓰면 바뀜');
   await Promise.all([b.waitForEvent('load'), b.getByRole('button', { name: '저장했어요' }).click()]);
-  await b.getByRole('button', { name: '습관' }).click();
+  await b.getByRole('button', { name: '기록', exact: true }).click();
   await b.getByText('1 / 66', { exact: true }).waitFor();
   assert.equal(srv.st.accounts.get('minkyu_01').pw, 'newpass99');
   assert.deepEqual(a.errors, []); assert.deepEqual(b.errors, []);
@@ -770,8 +773,8 @@ test('서버에 새 기능이 아직 없으면 버튼이 숨고, 화면 오류�
   const p = await person('2026-11-09T07:05:00', off);
   await onboard(p);
   await p.clock.runFor(1000);
-  await p.getByRole('button', { name: '목표 설정 열기' }).click();
-  await p.getByRole('button', { name: '저장', exact: true }).waitFor();
+  await p.getByRole('button', { name: '설정 열기' }).click();
+  await p.getByRole('button', { name: '기록 내보내기 (엑셀·CSV)' }).waitFor();
   assert.equal(await p.getByRole('button', { name: '의견·문의 보내기' }).count(), 0);
   assert.equal(await p.getByRole('button', { name: '서버에 있는 내 기록 지우기' }).count(), 0);
   await p.context().close();
@@ -787,7 +790,7 @@ test('서버에 새 기능이 아직 없으면 버튼이 숨고, 화면 오류�
   await new Promise(r => setTimeout(r, 300));
   const errs = on.st.reports.filter(r => r.p_kind === 'error');
   assert.deepEqual(errs.map(e => e.p_body), ['boom-0', 'boom-1', 'boom-2']);
-  assert.match(errs[0].p_meta, /v0\.9\.0/);
+  assert.match(errs[0].p_meta, /v0\.11\.0/);
   await q.context().close();
 });
 
@@ -803,7 +806,7 @@ test('보호권으로 쉰 날이 방에도 올라가 친구 프로필에서 방�
   });
   await fr.reload();
   await featuresReady(fr);
-  await fr.getByRole('button', { name: '+ 방 만들기' }).click();
+  await openMenu(fr); await fr.getByRole('button', { name: '+ 방 만들기' }).click();
   await fr.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민수');
   await fr.getByRole('button', { name: '방 만들기', exact: true }).click();
   await fr.getByText("'우리 방' 방을 만들었어요").waitFor();
@@ -815,7 +818,7 @@ test('보호권으로 쉰 날이 방에도 올라가 친구 프로필에서 방�
   await onboard(me);
   await me.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민규');
   await me.getByRole('button', { name: '들어가기', exact: true }).click();
-  await me.getByText('0명 / 2명이 하루를 시작했어요').waitFor();
+  await me.locator('#viewCount', { hasText: '0 / 2명 시작' }).waitFor();
   await unit(me, '민수').click();
   assert.equal(await me.locator('#sheetBody .cell.rest').count(), 1, '11/8 칸이 방패');
   assert.equal(await me.locator('#sheetBody .cell.hit').count(), 5, '11/3~11/7');
@@ -833,7 +836,7 @@ test('방을 보고 있을 때 친구가 불을 켜면 알려 준다', async () 
   const srv = mockServer();
   const me = await person('2026-11-09T06:30:00', srv);
   await onboard(me);
-  await me.getByRole('button', { name: '+ 방 만들기' }).click();
+  await openMenu(me); await me.getByRole('button', { name: '+ 방 만들기' }).click();
   await me.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민규');
   await me.getByRole('button', { name: '방 만들기', exact: true }).click();
   await me.getByText("'우리 방' 방을 만들었어요").waitFor();
@@ -843,9 +846,9 @@ test('방을 보고 있을 때 친구가 불을 켜면 알려 준다', async () 
   await onboard(fr);
   await fr.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민수');
   await fr.getByRole('button', { name: '들어가기', exact: true }).click();
-  await fr.getByText('0명 / 2명이 하루를 시작했어요').waitFor();
+  await fr.locator('#viewCount', { hasText: '0 / 2명 시작' }).waitFor();
   await me.clock.runFor(21000);
-  await me.getByText('0명 / 2명이 하루를 시작했어요').waitFor();
+  await me.locator('#viewCount', { hasText: '0 / 2명 시작' }).waitFor();
   await startDay(fr);
   await me.clock.runFor(21000);
   await me.getByText('민수 님이 불을 켰어요 · 06:40').waitFor();
@@ -857,7 +860,7 @@ test('초대받은 사람: 첫 화면에서 방 미리보기(오늘 켜진 수) 
   const srv = mockServer();
   const me = await person('2026-11-09T06:30:00', srv);
   await onboard(me);
-  await me.getByRole('button', { name: '+ 방 만들기' }).click();
+  await openMenu(me); await me.getByRole('button', { name: '+ 방 만들기' }).click();
   await me.getByLabel('방 이름 (20자까지)').fill('새벽반');
   await me.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민규');
   await me.getByRole('button', { name: '방 만들기', exact: true }).click();
@@ -874,10 +877,13 @@ test('초대받은 사람: 첫 화면에서 방 미리보기(오늘 켜진 수) 
   await onboard(fr);
   await fr.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민수');
   await fr.getByRole('button', { name: '들어가기', exact: true }).click();
-  await fr.getByText('1명 / 2명이 하루를 시작했어요').waitFor();
+  await fr.locator('#viewCount', { hasText: '1 / 2명 시작' }).waitFor();
   await featuresReady(fr);
-  // 이번 주 함께 켜기: 2명 × 4 = 8, 지금 1
+  // 이번 주 함께 켜기(방 이름 → 방 메뉴): 2명 × 4 = 8, 지금 1
+  await openMenu(fr);
   await fr.locator('#roomGoal').getByText('1 / 8').waitFor();
+  await fr.screenshot({ path: path.join(SHOTS, 'v11-room-sheet.png') });
+  await fr.getByRole('button', { name: '닫기' }).click();
   // 친구가 켜기 전엔 나에게 응원 버튼 대신 안내 (민규는 켰으니 응원 가능)
   await unit(fr, '민규').click();
   await fr.getByRole('button', { name: '☀️ 좋은 아침' }).click();
@@ -890,7 +896,7 @@ test('초대받은 사람: 첫 화면에서 방 미리보기(오늘 켜진 수) 
   await featuresReady(me);
   await me.clock.runFor(21000);
   await me.clock.runFor(21000);
-  await me.getByText('받은 응원 ☀️민수', { exact: false }).waitFor();
+  await me.getByText('받은 응원 ☀️ 민수', { exact: false }).waitFor();
   assert.ok(srv.st.funnel.includes('room'), '단계 집계: 방');
   assert.ok(srv.st.funnel.includes('invite_visit') && srv.st.funnel.includes('cheer'));
   assert.deepEqual(me.errors, []); assert.deepEqual(fr.errors, []);
@@ -901,7 +907,7 @@ test('방 주간 목표: 방장이 각자 몇 번인지 바꾸면 친구 화면�
   const srv = mockServer();
   const me = await person('2026-11-09T06:30:00', srv);
   await onboard(me);
-  await me.getByRole('button', { name: '+ 방 만들기' }).click();
+  await openMenu(me); await me.getByRole('button', { name: '+ 방 만들기' }).click();
   await me.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민규');
   await me.getByRole('button', { name: '방 만들기', exact: true }).click();
   await me.getByText("'우리 방' 방을 만들었어요").waitFor();
@@ -911,17 +917,22 @@ test('방 주간 목표: 방장이 각자 몇 번인지 바꾸면 친구 화면�
   await onboard(fr);
   await fr.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민수');
   await fr.getByRole('button', { name: '들어가기', exact: true }).click();
-  await fr.locator('#roomGoal').getByText('각자 4번씩', { exact: false }).waitFor();
-  await fr.getByText('목표 횟수는 방장이 정해요.').waitFor();
+  await fr.locator('#viewCount', { hasText: '0 / 2명 시작' }).waitFor();
+  await openMenu(fr);
+  await fr.locator('#roomGoal').getByText('한 사람당 4회').waitFor();
+  await fr.getByText('참여 목표는 방장이 정해요', { exact: false }).waitFor();
   assert.equal(await fr.locator('[data-week-goal]').count(), 0);
+  await fr.getByRole('button', { name: '닫기' }).click();
   await me.clock.runFor(21000);
+  await openMenu(me);
   await me.locator('#roomGoal').getByText('0 / 8').waitFor();
-  await me.getByRole('button', { name: '3번' }).click();
-  await me.getByText('이번 주부터 각자 3번씩이에요.').waitFor();
+  await me.getByRole('button', { name: '3회', exact: true }).click();
+  await me.getByText('이번 주부터 한 사람당 3회예요.').waitFor();
   await me.locator('#roomGoal').getByText('0 / 6').waitFor();
-  await me.screenshot({ path: path.join(SHOTS, 'v10-room-goal.png'), fullPage: true });
+  await me.screenshot({ path: path.join(SHOTS, 'v10-room-goal.png') });
   await fr.clock.runFor(21000);
-  await fr.locator('#roomGoal').getByText('각자 3번씩', { exact: false }).waitFor();
+  await openMenu(fr);
+  await fr.locator('#roomGoal').getByText('한 사람당 3회').waitFor();
   assert.deepEqual(me.errors, []); assert.deepEqual(fr.errors, []);
   await me.context().close(); await fr.context().close();
 });

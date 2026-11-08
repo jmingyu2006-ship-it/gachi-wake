@@ -32,10 +32,10 @@ function seed(days, extra = {}) {
 }
 async function open(isoLocal, data, opts = {}) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: 'Asia/Seoul', locale: 'ko-KR', serviceWorkers: 'block', reducedMotion: opts.reduced ? 'reduce' : 'no-preference' });
-  const page = await context.newPage();
+  const page = await context.newPage(); page.setDefaultTimeout(+process.env.PWT || 30000);
   page.errors = [];
   page.on('pageerror', e => page.errors.push(e.message));
-  await page.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+  await page.route(/fonts\.(googleapis|gstatic)\.com|cdn\.jsdelivr\.net/, r => r.abort());
   await page.route('**/config.js', r => r.fulfill({ contentType: 'text/javascript', body: 'window.GACHI_CONFIG={};' }));
   if (data) await page.addInitScript((d) => {
     if (localStorage.getItem('seeded')) return;
@@ -54,7 +54,7 @@ const range = (from, n, min = 420) => Array.from({ length: n }, (_, i) => { cons
 
 test('첫날: 창문 점등 → 금빛 아침(새로 발견) → 연속 0→1, 첫 창문 축하, 확인하면 오늘 화면에 하늘', async () => {
   const page = await open('2026-11-09T07:00:00', seed([]));
-  await page.getByRole('button', { name: '하루 시작하기' }).click();
+  await page.getByRole('button', { name: '하루 시작', exact: true }).click();
   await page.clock.runFor(300);
   const cer = page.locator('#cer');
   await cer.waitFor();
@@ -72,10 +72,11 @@ test('첫날: 창문 점등 → 금빛 아침(새로 발견) → 연속 0→1, �
   await cer.getByText('연속 3일이 되면 아침 새가 날아와요 · 2일 남음').waitFor();
   await cer.getByRole('button', { name: '확인' }).click();
   assert.equal(await cer.count(), 0);
-  await page.getByText('오늘의 하늘 · 금빛 아침').waitFor();
+  await page.getByRole('button', { name: /오늘의 하늘.*금빛 아침/ }).waitFor();
   assert.match(await page.locator('.scene').first().getAttribute('style'), /linear-gradient/, '장면에 오늘 하늘');
-  // 다시 보기: 새로 발견 표시는 없음
-  await page.getByRole('button', { name: '다시 보기' }).click();
+  // 오늘의 하늘 → 효과 다시 보기: 새로 발견 표시는 없음
+  await page.getByRole('button', { name: /오늘의 하늘/ }).click();
+  await page.getByRole('button', { name: '불 켜는 효과 다시 보기' }).click();
   await page.clock.runFor(300);
   await page.locator('#cer').waitFor();
   assert.equal(await page.locator('#cer').getByText('새로 발견').count(), 0);
@@ -94,7 +95,7 @@ test('첫날: 창문 점등 → 금빛 아침(새로 발견) → 연속 0→1, �
 
 test('7일째: 칭호 "일주일의 리듬" + 보호권 획득 + 햇살 단계(e2), 드문 하늘 이상', async () => {
   const page = await open('2026-11-09T06:58:00', seed(range('2026-11-03', 6)));
-  await page.getByRole('button', { name: '하루 시작하기' }).click();
+  await page.getByRole('button', { name: '하루 시작', exact: true }).click();
   await page.clock.runFor(300);
   const cer = page.locator('#cer');
   await cer.getByText("7일째 · 칭호 '일주일의 리듬'").waitFor();
@@ -105,8 +106,10 @@ test('7일째: 칭호 "일주일의 리듬" + 보호권 획득 + 햇살 단계(e
   await page.waitForTimeout(3800);
   await page.screenshot({ path: path.join(SHOTS, 'joy-4-milestone.png') });
   await cer.getByRole('button', { name: '확인' }).click();
-  await page.getByRole('button', { name: '습관' }).click();
+  await page.getByRole('button', { name: '기록', exact: true }).click();
   await page.getByText('7 / 66', { exact: true }).waitFor();
+  await page.getByRole('button', { name: '모은 하늘' }).click();
+  await page.getByRole('button', { name: /칭호 · 보호권/ }).click();
   assert.equal(await page.locator('.titles span.got').count(), 2);
   await page.screenshot({ path: path.join(SHOTS, 'joy-5-habit.png'), fullPage: true });
   assert.deepEqual(page.errors, []);
@@ -116,21 +119,22 @@ test('7일째: 칭호 "일주일의 리듬" + 보호권 획득 + 햇살 단계(e
 test('보호권: 어제 빠졌어도 연속이 이어지고 연출에서 알려 준다', async () => {
   // 11/1~11/7 기록(보호권 1) → 11/8 빠짐 → 11/9 기록
   const page = await open('2026-11-09T07:05:00', seed(range('2026-11-01', 7)));
-  await page.getByRole('button', { name: '하루 시작하기' }).click();
+  await page.getByRole('button', { name: '하루 시작', exact: true }).click();
   await page.clock.runFor(300);
   const cer = page.locator('#cer');
   await cer.getByText('어제는 보호권으로 연속 기록을 지켰어요').waitFor();
   await page.clock.runFor(3000);
   assert.equal(await cer.locator('#cerStreak').textContent(), '8일');
   await cer.getByRole('button', { name: '확인' }).click();
-  await page.getByText('연속 8일').waitFor();
+  await page.getByRole('button', { name: /오늘의 하늘/ }).click();
+  await page.locator('#sheetBody').getByText('연속 8일').waitFor();
   assert.deepEqual(page.errors, []);
   await page.context().close();
 });
 
 test('움직임 줄이기: 연출이 바로 마지막 모습으로', async () => {
   const page = await open('2026-11-09T07:00:00', seed([]), { reduced: true });
-  await page.getByRole('button', { name: '하루 시작하기' }).click();
+  await page.getByRole('button', { name: '하루 시작', exact: true }).click();
   await page.clock.runFor(300);
   const cer = page.locator('#cer');
   await cer.waitFor();

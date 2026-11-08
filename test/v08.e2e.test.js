@@ -64,10 +64,10 @@ const pushStub = () => {
 };
 async function open(isoLocal, srv, opts = {}) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: 'Asia/Seoul', locale: 'ko-KR', serviceWorkers: 'block', permissions: ['geolocation'], geolocation: { latitude: 37.5512, longitude: 126.9882 } });
-  const page = await context.newPage();
+  const page = await context.newPage(); page.setDefaultTimeout(+process.env.PWT || 30000);
   page.errors = [];
   page.on('pageerror', e => page.errors.push(e.message));
-  await page.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+  await page.route(/fonts\.(googleapis|gstatic)\.com|cdn\.jsdelivr\.net/, r => r.abort());
   if (srv) await srv.attach(page);
   else await page.route('**/config.js', r => r.fulfill({ contentType: 'text/javascript', body: 'window.GACHI_CONFIG={};' }));
   if (opts.push) await page.addInitScript(pushStub);
@@ -89,16 +89,17 @@ test('실제 날씨: 설정에서 서울을 고르면 비 오는 날 하늘이 "
   const srv = fakeServer();
   const page = await open('2026-11-09T07:00:00', srv);
   await onboard(page);
-  await page.getByRole('button', { name: '습관' }).click();
+  await page.getByRole('button', { name: '기록', exact: true }).click();
+  await page.getByRole('button', { name: '모은 하늘' }).click();
   await page.getByText('실제 날씨를 켜면 만날 수 있어요', { exact: false }).waitFor();
   await page.getByRole('button', { name: '오늘' }).click();
-  await page.getByRole('button', { name: '목표 설정 열기' }).click();
+  await page.getByRole('button', { name: '설정 열기' }).click();
   await page.getByLabel(/하루를 시작한 순간의 날씨/).check();
   await page.getByLabel('지역').selectOption('서울');
   await page.getByText('지금 서울 7° · 비').waitFor();
   assert.match(srv.st.lastWeatherUrl, /latitude=37\.6&longitude=127&current=temperature_2m,weather_code/);
   await page.getByRole('button', { name: '닫기' }).last().click();
-  await page.getByRole('button', { name: '하루 시작하기' }).click();
+  await page.getByRole('button', { name: '하루 시작', exact: true }).click();
   await page.clock.runFor(400);
   const cer = page.locator('#cer');
   await cer.getByText('서울 7° · 비 · 궂은 날에도 시작했어요').waitFor();
@@ -110,7 +111,7 @@ test('실제 날씨: 설정에서 서울을 고르면 비 오는 날 하늘이 "
   const rec = await page.evaluate(() => JSON.parse(localStorage.getItem('gachi-v2-records'))[0]);
   assert.equal(rec.wx, 63); assert.equal(rec.tc, 7);
   // 현재 위치(대략)
-  await page.getByRole('button', { name: '목표 설정 열기' }).click();
+  await page.getByRole('button', { name: '설정 열기' }).click();
   await page.getByLabel('지역').selectOption('__here');
   await page.waitForFunction(() => (JSON.parse(localStorage.getItem('gachi-v2-weather')) || {}).name === '현재 위치');
   const w = await page.evaluate(() => JSON.parse(localStorage.getItem('gachi-v2-weather')));
@@ -124,29 +125,28 @@ test('푸시 알림: 켜기(권한·구독·서버 저장) → 테스트 알림 
   const page = await open('2026-11-09T22:00:00', srv, { push: true });
   await onboard(page);
   await page.waitForFunction(() => window.__wakeApp && window.__wakeApp.state.features.includes('push'));
-  await page.locator('section.card', { hasText: '내일 첫 아침 예약하기' }).waitFor();
-  await page.getByRole('button', { name: '예약' }).click();
-  await page.getByText('푸시 알림 (추천)').waitFor();
+  await page.locator('[data-morning]', { hasText: '아침 알림 설정' }).click();
   await page.screenshot({ path: path.join(SHOTS, 'v08-push-sheet.png') });
-  await page.getByLabel(/아침 알림 · 목표 시각에/).check();
-  await page.getByText('알림을 켰어요. 테스트 알림으로 확인해 보세요.').waitFor();
+  await page.locator('#mMorning').check();
+  assert.equal(srv.st.subs.size, 0, '저장을 눌러야 적용');
+  await page.getByRole('button', { name: '저장', exact: true }).click();
+  await page.getByText('저장했어요 · 알림을 켰어요.').waitFor();
   const prefs = srv.st.subs.get('https://fcm.googleapis.com/fcm/send/fake-1');
   assert.deepEqual(prefs, { morning: true, bedtime: false, weekdaysOnly: false, baselineMin: 465, targetMin: 465, planStart: '2026-11-09', sleepH: 8, days: [0, 1, 2, 3, 4, 5, 6] }, '지금 단계 목표(07:45)로');
-  await page.getByRole('button', { name: '닫기' }).last().click();
-  assert.equal(await page.locator('section.card', { hasText: '첫 아침 예약하기' }).count(), 0, '알림 켠 사람에겐 예약 카드 대신 안내');
-  await page.getByText('내일 첫 아침 07:45 알림이 예약돼 있어요', { exact: false }).waitFor();
-  // 설정: 잘 시간·평일만, 테스트 알림
-  await page.getByRole('button', { name: '목표 설정 열기' }).click();
-  await page.getByLabel(/잘 시간 알림/).check();
-  await page.getByText('알림 설정을 바꿨어요.').waitFor();
+  await page.locator('[data-morning]', { hasText: '아침 알림 켜짐' }).waitFor();
+  // 같은 시트에서 잘 시간 알림, 테스트 알림
+  await page.locator('[data-morning]').click();
+  await page.locator('#mBed').check();
+  await page.getByRole('button', { name: '저장', exact: true }).click();
+  await page.getByText('저장했어요 · 알림 설정을 바꿨어요.').waitFor();
   assert.equal(srv.st.subs.get('https://fcm.googleapis.com/fcm/send/fake-1').bedtime, true);
-  await page.getByRole('button', { name: '목표 설정 열기' }).click().catch(() => {});
+  await page.locator('[data-morning]').click();
   await page.getByRole('button', { name: '테스트 알림 보내기' }).click();
   await page.getByText('테스트 알림을 보냈어요. 몇 초 안에 와요.').waitFor();
-  for (const [i, y] of [[1, 0], [2, 700], [3, 1400], [4, 2100]]) {
-    await page.locator('#sheetBody').evaluate((e, y) => { (e.closest('.sheet-panel') || e.parentElement).scrollTop = y; e.scrollTop = y; }, y);
-    await page.screenshot({ path: path.join(SHOTS, 'v08-settings-' + i + '.png') });
-  }
+  await page.getByRole('button', { name: '닫기' }).click();
+  await page.getByRole('button', { name: '설정 열기' }).click();
+  await page.screenshot({ path: path.join(SHOTS, 'v08-settings-1.png') });
+  await page.getByRole('button', { name: /목표 계획/ }).click();
   // 평소 시각을 바꾸면(차이 30분 → 바로 07:00) 서버의 알림 시각도
   await page.locator('.stepper[data-for="baselineMin"] [data-d="-15"]').click();
   await page.locator('.stepper[data-for="baselineMin"] [data-d="-15"]').click();   // 07:30 → 목표와 30분 차이라 바로 07:00
@@ -155,11 +155,11 @@ test('푸시 알림: 켜기(권한·구독·서버 저장) → 테스트 알림 
   for (let i = 0; i < 20 && srv.st.subs.get('https://fcm.googleapis.com/fcm/send/fake-1').targetMin !== 420; i++) await page.clock.runFor(100);
   assert.equal(srv.st.subs.get('https://fcm.googleapis.com/fcm/send/fake-1').targetMin, 420);
   // 끄기 (둘 다 해제)
-  await page.getByRole('button', { name: '목표 설정 열기' }).click();
-  await page.getByLabel(/아침 알림 · 목표 시각에/).uncheck();
-  await page.getByText('알림 설정을 바꿨어요.').waitFor();
-  await page.getByLabel(/잘 시간 알림/).uncheck();
-  await page.getByText('알림을 껐어요.').waitFor();
+  await page.locator('[data-morning]').click();
+  await page.locator('#mMorning').uncheck();
+  await page.locator('#mBed').uncheck();
+  await page.getByRole('button', { name: '저장', exact: true }).click();
+  await page.getByText('저장했어요 · 알림을 껐어요.').waitFor();
   assert.equal(srv.st.subs.size, 0);
   assert.equal(await page.evaluate(() => localStorage.getItem('gachi-v2-push')), null);
   assert.deepEqual(page.errors, []);
@@ -170,26 +170,27 @@ test('잘못 누름 취소(5분 안, 두 번) → 다시 누를 수 있음, 5분
   const srv = fakeServer();
   const page = await open('2026-11-09T07:00:00', srv);
   await onboard(page);
-  await page.getByRole('button', { name: '하루 시작하기' }).click();
+  await page.getByRole('button', { name: '하루 시작', exact: true }).click();
   await page.clock.runFor(400);
   await page.locator('#cer').getByRole('button', { name: '확인' }).click();
   await page.getByRole('button', { name: '잘못 눌렀어요 · 취소' }).click();
   await page.getByRole('button', { name: '한 번 더 누르면 오늘 기록을 취소해요' }).click();
   await page.getByText('오늘 기록을 취소했어요. 준비되면 다시 눌러 주세요.').waitFor();
-  await page.getByRole('button', { name: '하루 시작하기' }).waitFor();
+  await page.getByRole('button', { name: '하루 시작', exact: true }).waitFor();
   assert.ok(srv.st.calls.some(c => c.fn === 'undo_start' && c.body.p_day === '2026-11-09'));
   assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('gachi-v2-records')).length), 0);
   // 다시 눌러 시작 → 컨디션
-  await page.getByRole('button', { name: '하루 시작하기' }).click();
+  await page.getByRole('button', { name: '하루 시작', exact: true }).click();
   await page.clock.runFor(400);
   await page.locator('#cer').getByRole('button', { name: '확인' }).click();
+  await page.getByRole('button', { name: '컨디션 기록' }).click();
   await page.getByRole('button', { name: '개운해요' }).click();
-  assert.equal(await page.getByRole('button', { name: '개운해요' }).getAttribute('aria-pressed'), 'true');
+  await page.getByRole('button', { name: '컨디션 · 개운해요' }).waitFor();
   assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('gachi-v2-records'))[0].mood), 3);
   await page.screenshot({ path: path.join(SHOTS, 'v08-today.png'), fullPage: true });
   // 5분 지나면 취소 버튼이 사라짐
   await page.clock.fastForward('05:10');
-  await page.getByRole('button', { name: '습관' }).click();
+  await page.getByRole('button', { name: '기록', exact: true }).click();
   await page.getByRole('button', { name: '오늘' }).click();
   assert.equal(await page.getByRole('button', { name: '잘못 눌렀어요 · 취소' }).count(), 0);
   assert.deepEqual(page.errors, []);
@@ -205,12 +206,16 @@ test('달력: 이번 달 기록이 하늘 색으로, 지난달로 넘기기, 날
   const page = await open('2026-11-09T09:00:00', null, { url: BASE + '?tab=habit', seed: { 'gachi-v2-settings': SETTINGS, 'gachi-v2-records': recs } });
   await page.getByText('2026년 11월').waitFor();
   assert.equal(await page.evaluate(() => location.search), '', '주소에서 바로가기 표시는 지움');
-  await page.getByText('6일 기록', { exact: true }).waitFor();
   assert.equal(await page.locator('.cal .c.on').count(), 6);
   assert.equal(await page.locator('.cal .c.rest').count(), 1, '11/7은 보호권으로 쉰 날 (11/6이 7번째 기록이라 보호권 1개)');
   await page.locator('[data-cal="2026-11-04"]').click();
-  await page.getByText(/11\/4 07:05 · 비 오는 아침|11\/4 07:05 · 무지개 아침/).waitFor();
-  await page.getByText(/비 9°/).first().waitFor();
+  const det = page.locator('#dayDetail');
+  await det.getByText('11월 4일').waitFor();
+  await det.getByText('07:05에 시작').waitFor();
+  await det.getByText(/비 오는 아침|무지개 아침/).waitFor();
+  await det.getByText(/비 9°/).waitFor();
+  await page.locator('[data-cal="2026-11-03"]').click();
+  await page.locator('#dayDetail').getByText(/컨디션 개운해요/).waitFor();
   await page.getByRole('button', { name: '이전 달' }).click();
   await page.getByText('2026년 10월').waitFor();
   assert.equal(await page.locator('.cal .c.on').count(), 2);

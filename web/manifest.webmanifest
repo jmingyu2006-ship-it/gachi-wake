@@ -7,8 +7,8 @@
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#0E1322",
-  "theme_color": "#0E1322",
+  "background_color": "#0E1422",
+  "theme_color": "#0E1422",
   "icons": [
     {
       "src": "icons/icon-192.png",
@@ -29,7 +29,7 @@
   ],
   "shortcuts": [
     {
-      "name": "하루 시작하기",
+      "name": "하루 시작",
       "short_name": "하루 시작",
       "url": "./?start=1",
       "icons": [
@@ -40,8 +40,8 @@
       ]
     },
     {
-      "name": "습관 보기",
-      "short_name": "습관",
+      "name": "기록 보기",
+      "short_name": "기록",
       "url": "./?tab=habit",
       "icons": [
         {

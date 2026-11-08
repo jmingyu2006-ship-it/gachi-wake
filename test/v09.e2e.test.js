@@ -44,10 +44,10 @@ function fakeServer() {
 }
 async function open(isoLocal, opts = {}) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: 'Asia/Seoul', locale: 'ko-KR', serviceWorkers: 'block' });
-  const page = await context.newPage();
+  const page = await context.newPage(); page.setDefaultTimeout(+process.env.PWT || 30000);
   page.errors = [];
   page.on('pageerror', e => page.errors.push(e.message));
-  await page.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+  await page.route(/fonts\.(googleapis|gstatic)\.com|cdn\.jsdelivr\.net/, r => r.abort());
   if (opts.srv) await opts.srv.attach(page);
   else await page.route('**/config.js', r => r.fulfill({ contentType: 'text/javascript', body: 'window.GACHI_CONFIG={};' }));
   if (opts.seed) await page.addInitScript((d) => {
@@ -85,7 +85,7 @@ test('첫 방문: 설정 전에 "먼저 창문 켜 보기" 체험(저장 안 됨
   await page.getByRole('button', { name: '20대' }).click();
   await page.getByRole('button', { name: '시작하기' }).click();
   // 오후 첫 방문: 내일 첫 아침 예약
-  await page.getByText('내일 첫 아침 예약하기').waitFor();
+  await page.locator('[data-morning]', { hasText: '아침 알림 설정' }).waitFor();
   await page.waitForFunction(() => window.__wakeApp.state.features.length > 0);
   for (let i = 0; i < 10 && srv.st.funnel.length < 3; i++) await page.clock.runFor(100);
   assert.deepEqual(srv.st.funnel.slice().sort(), ['demo', 'setup', 'visit']);
@@ -96,7 +96,7 @@ test('첫 방문: 설정 전에 "먼저 창문 켜 보기" 체험(저장 안 됨
 test('목표 제안: 07:45 목표를 3번 연속 지키면 "15분 앞당길까요?" → 앞당기면 내일 07:30 / 조금 더 유지는 이틀 쉬기', async () => {
   const days = [['2026-11-06', 465, 465], ['2026-11-07', 470, 465], ['2026-11-08', 460, 465]];
   const page = await open('2026-11-09T07:45:00', { seed: { settings: SET(), days } });
-  await page.getByRole('button', { name: '하루 시작하기' }).click();
+  await page.getByRole('button', { name: '하루 시작', exact: true }).click();
   await page.clock.runFor(400);
   await page.locator('#cer').getByRole('button', { name: '확인' }).click();
   await page.getByText('최근 3번 모두 목표 근처에서 시작했어요.', { exact: false }).waitFor();
@@ -104,7 +104,6 @@ test('목표 제안: 07:45 목표를 3번 연속 지키면 "15분 앞당길까�
   await page.getByRole('button', { name: '앞당기기' }).click();
   await page.getByText('내일부터 07:30이 목표예요.').waitFor();
   assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('gachi-v2-settings')).cur), 450);
-  assert.match(await page.locator('.tip').first().textContent(), /07:30/);
   assert.equal(await page.getByText('최근 3번 모두 목표 근처에서', { exact: false }).count(), 0, '고른 뒤엔 사라짐');
   // 오늘 기록은 그때 목표(07:45) 그대로 평가
   assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('gachi-v2-records')).slice(-1)[0].dayTarget), 465);
@@ -115,7 +114,7 @@ test('목표 제안: 07:45 목표를 3번 연속 지키면 "15분 앞당길까�
 test('오래 쉬다 돌아온 날: 쌓은 창문은 그대로 안내 + 편한 목표 고르기, 연출에서도 다시 이어가요', async () => {
   const days = [['2026-10-20', 465, 465], ['2026-10-21', 465, 465], ['2026-10-22', 470, 465]];
   const page = await open('2026-11-09T07:50:00', { seed: { settings: SET(), days } });
-  await page.getByRole('button', { name: '하루 시작하기' }).click();
+  await page.getByRole('button', { name: '하루 시작', exact: true }).click();
   await page.clock.runFor(400);
   await page.locator('#cer').getByText('지금까지 채운 창문 3칸은 그대로예요. 오늘부터 다시 이어가요').waitFor();
   await page.locator('#cer').getByRole('button', { name: '확인' }).click();
@@ -128,7 +127,8 @@ test('오래 쉬다 돌아온 날: 쌓은 창문은 그대로 안내 + 편한 �
 
 test('참여 요일: 설정에서 월~금 → 저장해도 단계 목표 유지, 토요일엔 쉬는 요일 안내, 주말을 건너 연속, 많이 일찍 판정', async () => {
   const page = await open('2026-11-06T07:40:00', { seed: { settings: SET({ cur: 420, baselineMin: 440 }), days: [['2026-11-03', 420, 420], ['2026-11-04', 425, 420], ['2026-11-05', 418, 420]] } });
-  await page.getByRole('button', { name: '목표 설정 열기' }).click();
+  await page.getByRole('button', { name: '설정 열기' }).click();
+  await page.getByRole('button', { name: /내일 아침/ }).click();
   for (const d of ['일', '토']) await page.locator('#sheetBody').getByRole('button', { name: d, exact: true }).click();
   await page.getByRole('button', { name: '저장', exact: true }).click();
   await page.getByText('저장했어요.').waitFor();
@@ -144,13 +144,13 @@ test('참여 요일: 설정에서 월~금 → 저장해도 단계 목표 유지,
   // 월요일 05:30 → 목표 07:00보다 90분 일찍 → 많이 일찍 (기록은 됨), 토·일을 건너 연속 6일
   const mon = await open('2026-11-09T05:30:00', { seed: { settings: weekdays, days: recs } });
   assert.equal(await mon.getByText('오늘은 쉬는 요일이에요', { exact: false }).count(), 0);
-  await mon.getByRole('button', { name: '하루 시작하기' }).click();
+  await mon.getByRole('button', { name: '하루 시작', exact: true }).click();
   await mon.clock.runFor(400);
   await mon.locator('#cer').getByText('많이 일찍', { exact: false }).waitFor();
   await mon.locator('#cer').getByRole('button', { name: '확인' }).click();
-  await mon.locator('.badge.early').first().waitFor();
-  await mon.getByRole('button', { name: '습관' }).click();
-  assert.equal(await mon.locator('.stat-num').first().textContent(), '6일', '토·일 쉬는 요일을 건너 연속 6일');
+  await mon.getByText('목표 07:00 · 1시간 30분 일찍').waitFor();
+  await mon.getByRole('button', { name: '기록', exact: true }).click();
+  assert.equal(await mon.locator('.duo .big').nth(1).textContent(), '6일', '토·일 쉬는 요일을 건너 연속 6일');
   await mon.screenshot({ path: path.join(SHOTS, 'v09-habit.png'), fullPage: true });
   assert.deepEqual(mon.errors, []);
   await mon.context().close();
@@ -164,10 +164,10 @@ test('주간 리포트: 늦은 날이 많으면 "목표 유지하기·직접 조
   await page.screenshot({ path: path.join(SHOTS, 'v09-recap.png') });
   await page.getByRole('button', { name: '목표 유지하기' }).click();
   await page.getByText('이번 주도 07:45으로 가요.').waitFor();
-  await page.getByRole('button', { name: '습관' }).click();
+  await page.getByRole('button', { name: '기록', exact: true }).click();
   await page.locator('[data-recap]').click();
   await page.getByRole('button', { name: '직접 조정하기' }).click();
-  await page.getByRole('heading', { name: '목표 설정' }).waitFor();
+  await page.getByRole('heading', { name: '내일 아침' }).waitFor();
   assert.deepEqual(page.errors, []);
   await page.context().close();
 });

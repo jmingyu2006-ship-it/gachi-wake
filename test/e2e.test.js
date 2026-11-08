@@ -32,7 +32,8 @@ async function open(context, isoLocal, opts = {}) {
   const page = await context.newPage();
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
-  await page.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+  page.setDefaultTimeout(+process.env.PWT || 30000);
+  await page.route(/fonts\.(googleapis|gstatic)\.com|cdn\.jsdelivr\.net/, r => r.abort());
   // 기본: 서버 없는 예시 모드 (실제 Supabase에 테스트 기록이 들어가지 않게). 서버 테스트는 opts.route로 덮어씀
   await page.route('**/config.js', r => r.fulfill({ contentType: 'text/javascript', body: 'window.GACHI_CONFIG={};' }));
   await page.route(/supabase\.co/, r => r.abort());
@@ -58,7 +59,7 @@ const settled = (page) => page.clock.runFor(2500);
 
 // 하루 시작 → 불 켜기 연출이 뜨면 '확인'으로 닫기
 async function startDay(page) {
-  await page.getByRole('button', { name: '하루 시작하기' }).click();
+  await page.getByRole('button', { name: '하루 시작', exact: true }).click();
   await page.clock.runFor(400);
   const cer = page.locator('#cer');
   if (await cer.count()) await cer.getByRole('button', { name: '확인' }).click();
@@ -88,16 +89,15 @@ test('온보딩 → 하루 시작(07:40, 단계 목표 07:45) → 달성, 내 �
 
   await startDay(page);
   await page.clock.runFor(1600);
-  await page.getByText('목표 달성').waitFor();
-  await page.getByText('07:40에 하루를 시작했어요').waitFor();
+  await page.getByText('목표 07:45 · 5분 일찍').waitFor();
+  await page.locator('.hero-time', { hasText: '07:40' }).waitFor();
   assert.equal(await page.locator('.win.me.on').count(), 1, '내 창문이 켜져야 함');
-  await page.getByText('23:45').waitFor();                           // 내일 목표 07:45 - 8시간
   await page.screenshot({ path: path.join(SHOTS, '04-today-after.png') });
 
   await page.getByRole('button', { name: '했어요' }).click();
   await page.reload();
-  await page.getByText('목표 달성').waitFor();
-  assert.equal(await page.getByRole('button', { name: '하루 시작하기' }).count(), 0);
+  await page.getByText('목표 07:45 · 5분 일찍').waitFor();
+  assert.equal(await page.getByRole('button', { name: '하루 시작', exact: true }).count(), 0);
   assert.equal(await page.getByRole('button', { name: '했어요' }).count(), 0, '첫 행동 체크 유지');
   assert.equal(await page.locator('.win.me.on').count(), 1);
   assert.equal(await page.locator('#ob').isVisible(), false, '다시 온보딩이 뜨지 않음');
@@ -105,14 +105,14 @@ test('온보딩 → 하루 시작(07:40, 단계 목표 07:45) → 달성, 내 �
   await c.close();
 });
 
-test('늦은 시작(09:30): 비난 없이 "괜찮아요"로 안내', async () => {
+test('늦은 시작(09:30): 긴 위로 없이 사실대로 "+1시간 45분"', async () => {
   const c = await ctx();
   const page = await open(c, '2026-11-09T09:30:00');
   await onboard(page);
   await startDay(page);
   await page.clock.runFor(1600);
-  await page.getByText('늦어도 시작한 게 중요해요').waitFor();
-  await page.getByText('1시간 45분 늦었어요').waitFor();
+  await page.getByText('목표 07:45 · +1시간 45분').waitFor();
+  assert.equal(await page.getByText('늦어도 시작한 게 중요해요').count(), 0);
   await c.close();
 });
 
@@ -130,7 +130,7 @@ test('직접 입력: 빈 값은 막고, 태그 문자는 지우고 20자로 자�
   await page.getByRole('button', { name: '시작하기' }).click();
   await startDay(page);
   await page.clock.runFor(1600);
-  const t = await page.locator('.action-text').first().textContent();
+  const t = await page.locator('.rowi', { hasText: '첫 행동' }).locator('.v').textContent();
   assert.ok(!t.includes('<'), t);
   assert.ok(Array.from(t).length <= 20, t);
   await c.close();
@@ -140,30 +140,31 @@ test('마감(22:40) → 체험 → 저장 안 됨, 습관 탭 빈 상태', async
   const c = await ctx();
   const page = await open(c, '2026-11-07T22:40:00');
   await onboard(page);
-  await page.getByText('오후 2시에 마감').waitFor();
-  assert.equal(await page.getByRole('button', { name: '하루 시작하기' }).count(), 0);
+  await page.getByText('첫 기록은 내일 아침부터').waitFor();
+  assert.equal(await page.getByRole('button', { name: '하루 시작', exact: true }).count(), 0);
   await page.screenshot({ path: path.join(SHOTS, '05-closed.png') });
   await page.getByRole('button', { name: '아침 시간으로 체험해보기' }).click();
   await page.getByRole('button', { name: /06:42/ }).click();
   await page.getByText(/체험 중/).waitFor();
   await startDay(page);
   await page.clock.runFor(1600);
-  await page.getByText('많이 일찍').first().waitFor();   // 목표 07:45보다 63분 일찍 → 달성이 아님 (일찍보다 일정하게)
+  await page.getByText('목표 07:45 · 1시간 3분 일찍').first().waitFor();
   await page.getByRole('button', { name: '체험 끝내기' }).click();
-  await page.getByText('오후 2시에 마감').waitFor();
+  await page.getByText('첫 기록은 내일 아침부터').waitFor();
   await page.reload();
-  await page.getByRole('button', { name: '습관' }).click();
-  await page.getByText('아직 기록이 없어요').waitFor();
+  await page.getByRole('button', { name: '기록', exact: true }).click();
+  await page.getByText("첫 기록은 '하루 시작' 한 번이면 돼요").waitFor();
   await page.getByText('0 / 66', { exact: true }).waitFor();
   await page.screenshot({ path: path.join(SHOTS, '06-habit-empty.png') });
   await c.close();
 });
 
-test('새벽(03:00): 버튼 비활성', async () => {
+test('새벽(03:00): 시작 버튼 대신 4시부터 안내', async () => {
   const c = await ctx();
   const page = await open(c, '2026-11-09T03:00:00');
   await onboard(page);
-  assert.equal(await page.locator('.start-btn').isDisabled(), true);
+  await page.getByText('기록은 새벽 4시부터').waitFor();
+  assert.equal(await page.locator('.start-btn').count(), 0);
   await c.close();
 });
 
@@ -173,7 +174,7 @@ test('오류 상태: 기기 저장이 막혀도 결과는 뜨고 안내가 나�
   await onboard(page);
   await startDay(page);
   await page.clock.runFor(1600);
-  await page.getByText('목표 달성').waitFor();
+  await page.getByText('목표 07:45 · 5분 일찍').waitFor();
   await page.getByText(/저장하지 못했어요/).first().waitFor();
   await c.close();
 });
@@ -189,24 +190,33 @@ test('습관 탭: 2주 기록이 있으면 이번 주 색, 달성 수, 흔들림
       localStorage.setItem('gachi-v2-records', JSON.stringify(recs));
     }
   });
-  await page.getByRole('button', { name: '습관' }).click();
+  await page.getByRole('button', { name: '기록', exact: true }).click();
   await page.getByText('9 / 66', { exact: true }).waitFor();
-  await page.getByText('7일 중 2일 기록').waitFor();
-  assert.equal(await page.locator('.cell.hit').count(), 1);
-  assert.equal(await page.locator('.cell.close').count(), 1);
-  assert.equal(await page.locator('.cell.todo').count(), 1);
-  assert.match(await page.locator('.stats .stat-num').nth(0).textContent(), /^3 \/ 6일$/);
-  assert.match(await page.locator('.stats .stat-num').nth(1).textContent(), /^±\d+분$/);
-  assert.match(await page.locator('.stats .stat-num').nth(2).textContent(), /^\+\d+분$/);
-  // 연속 9일(오늘 아직), 7일째에 보호권 1개, 내 건물 9칸, 칭호 3·7일
-  assert.equal(await page.locator('.stat-num').first().textContent(), '9일');
-  assert.equal(await page.locator('.card').first().locator('.shield i.on').count(), 1);
-  assert.equal(await page.locator('.my-bld .w.on').count(), 9);
-  assert.equal(await page.locator('.titles span.got').count(), 2);
-  assert.ok(await page.locator('.dex .it:not(.no)').count() >= 2, '도감에 하늘이 2종 이상');
-  assert.equal(await page.locator('svg[aria-label^="최근 14일"] circle').count(), 9);
+  // 첫 화면은 이번 주·연속만: 이번 주 2일, 연속 9일(오늘 아직), 7일째에 보호권 1개
+  assert.equal(await page.locator('.duo .big').nth(0).textContent(), '2일');
+  assert.equal(await page.locator('.duo .big').nth(1).textContent(), '9일');
+  assert.equal(await page.locator('.duo .shield i.on').count(), 1);
+  assert.equal(await page.locator('.cal .c.on').count(), 9);
   await page.clock.runFor(600);
   await page.screenshot({ path: path.join(SHOTS, '07-habit.png'), fullPage: true });
+  // 통계는 주간 상세에서
+  await page.getByRole('button', { name: /주간 상세/ }).click();
+  await page.getByText('이번 주 2일 기록 · 최근 7일 목표 달성 3 / 6일').waitFor();
+  assert.equal(await page.locator('#sheetBody .cell.hit').count(), 1);
+  assert.equal(await page.locator('#sheetBody .cell.close').count(), 1);
+  assert.equal(await page.locator('#sheetBody .cell.todo').count(), 1);
+  assert.match(await page.locator('#sheetBody .stat-num').nth(0).textContent(), /^±\d+분$/);
+  assert.match(await page.locator('#sheetBody .stat-num').nth(1).textContent(), /^\+\d+분$/);
+  assert.equal(await page.locator('svg[aria-label^="최근 14일"] circle').count(), 9);
+  await page.getByRole('button', { name: '닫기' }).click();
+  // 내 건물 9칸, 모은 하늘 2종 이상, 칭호 3·7일
+  await page.getByRole('button', { name: /내 건물/ }).click();
+  assert.equal(await page.locator('.my-bld .w.on').count(), 9);
+  await page.getByRole('button', { name: '닫기' }).click();
+  await page.getByRole('button', { name: '모은 하늘' }).click();
+  assert.ok(await page.locator('.sky-tile').count() >= 2, '하늘이 2종 이상');
+  await page.getByRole('button', { name: /칭호 · 보호권/ }).click();
+  assert.equal(await page.locator('.titles span.got').count(), 2);
   await c.close();
 });
 
@@ -216,7 +226,8 @@ test('설정 변경: 목표를 바꾸면 오늘부터 다시 계산되고, 기�
   await onboard(page);
   await startDay(page);
   await page.clock.runFor(1600);
-  await page.getByRole('button', { name: '목표 설정 열기' }).click();
+  await page.getByRole('button', { name: '설정 열기' }).click();
+  await page.getByRole('button', { name: /목표 계획/ }).click();
   await page.locator('.stepper[data-for="targetMin"] [data-d="15"]').click();  // 07:15 → 45분 차이라 단계 목표
   await page.getByText('3번 시작하면 15분씩').waitFor();
   await page.locator('.stepper[data-for="targetMin"] [data-d="15"]').click();  // 07:30 → 30분 차이라 바로
@@ -224,12 +235,11 @@ test('설정 변경: 목표를 바꾸면 오늘부터 다시 계산되고, 기�
   await page.getByRole('button', { name: '저장' }).click();
   await page.getByText('저장했어요.').waitFor();
   await page.reload();
-  await page.getByText('내일 목표는').waitFor();
-  assert.match(await page.locator('.tip').textContent(), /07:30/, '바뀐 목표가 저장됨');
-  await page.getByRole('button', { name: '목표 설정 열기' }).click();
+  await page.getByRole('button', { name: '설정 열기' }).click();
+  await page.getByRole('button', { name: /목표 계획.*최종 07:30/ }).waitFor();   // 바뀐 목표가 저장됨
   await page.getByRole('button', { name: '기록 모두 지우기' }).click();
   await page.getByRole('button', { name: '한 번 더 누르면 모든 기록이 지워져요' }).click();
-  await page.getByRole('button', { name: '하루 시작하기' }).waitFor();
+  await page.getByRole('button', { name: '하루 시작', exact: true }).waitFor();
   await c.close();
 });
 
@@ -281,7 +291,6 @@ test('1칸 = 1명: 130명이면 건물이 11층으로 올라가고 창문 130개
   await page.getByText('130명').waitFor();
   assert.equal(await page.locator('.win').count(), 132);
   assert.equal(await page.locator('.win.on').count(), 130);
-  assert.equal(await page.locator('#perLine').textContent(), '');
   await page.clock.runFor(2500);
   await page.screenshot({ path: path.join(SHOTS, '09-130-people.png') });
   await c.close();
@@ -300,10 +309,10 @@ test('공유 서버가 죽어도 앱은 동작하고, 다음에 열 때 다시 �
   };
   const page = await open(c, '2026-11-09T07:40:00', { route });
   await onboard(page);
-  await page.getByText('지금은 함께 보기를 불러올 수 없어요').waitFor();
+  await page.getByText('연결 안 됨').waitFor();
   await startDay(page);
   await page.clock.runFor(1600);
-  await page.getByText('목표 달성').waitFor();
+  await page.getByText('목표 07:45 · 5분 일찍').waitFor();
   assert.equal(posts.length, 0);
   down = false;
   await page.close();
@@ -319,14 +328,14 @@ test('공유: 공유 시트가 없으면 공개 주소를 복사한다', async (
   await c.grantPermissions(['clipboard-read', 'clipboard-write'], { origin: BASE.replace(/\/$/, '') });
   const page = await open(c, '2026-11-09T07:40:00', { init: () => { Object.defineProperty(navigator, 'share', { value: undefined, configurable: true }); } });
   await onboard(page);
-  await page.getByRole('button', { name: '친구에게 공유하기' }).click();
+  await page.getByRole('button', { name: /예시 건물/ }).click();
+  await page.getByRole('button', { name: '친구에게 앱 알려 주기' }).click();
   await page.getByText('링크를 복사했어요').waitFor();
   const clip = await page.evaluate(() => navigator.clipboard.readText());
   assert.match(clip, /07:00에 하루를 시작하기로 했어/);
   assert.match(clip, /https:\/\/jmingyu2006-ship-it\.github\.io\/gachi-wake\//);
   await startDay(page);
   await page.clock.runFor(1600);
-  await page.getByRole('button', { name: '친구 초대·공유' }).waitFor();
   const og = await page.evaluate(() => document.querySelector('meta[property="og:image"]').content);
   assert.equal(og, 'https://jmingyu2006-ship-it.github.io/gachi-wake/og.png');
   await c.close();
@@ -345,12 +354,11 @@ test('공유 서버: 아직 아무도 없으면 빈 상태, 서버가 거절하�
     }
   });
   await onboard(page);
-  await page.getByText('아직 아무도 없어요. 첫 창문을 켜 보세요').waitFor();
+  await page.getByText('0명 시작').waitFor();
   assert.equal(await page.locator('.win.on').count(), 0);
-  await page.getByText('모든 사용자 기준').waitFor();
   await startDay(page);
   await page.clock.runFor(1600);
-  await page.locator('.badge.early').first().waitFor();   // 05:10은 목표 07:45보다 한참 일찍
+  await page.getByText('목표 07:45 · 2시간 35분 일찍').waitFor();   // 05:10은 목표 07:45보다 한참 일찍
   await page.waitForFunction(() => JSON.parse(localStorage.getItem('gachi-v2-pending') || '[]').length === 0);
   assert.equal(posts, 1);
   await page.reload();
@@ -363,7 +371,8 @@ test('공유 서버: 아직 아무도 없으면 빈 상태, 서버가 거절하�
 test('PWA: 매니페스트·아이콘이 열리고 서비스 워커가 설치된다 (로그인 없이 설치 가능)', async () => {
   const c = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await c.newPage();
-  await page.route(/fonts\.(googleapis|gstatic)\.com/, r => r.abort());
+  page.setDefaultTimeout(+process.env.PWT || 30000);
+  await page.route(/fonts\.(googleapis|gstatic)\.com|cdn\.jsdelivr\.net/, r => r.abort());
   await page.goto(BASE);
   const man = await page.evaluate(async () => { const r = await fetch(document.querySelector('link[rel=manifest]').href); return r.json(); });
   assert.equal(man.display, 'standalone');

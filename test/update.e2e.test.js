@@ -39,7 +39,7 @@ const tagOf = (page) => page.evaluate(() => (document.querySelector('meta[name="
 test('배포하면: 보고 있을 땐 "새 버전" 버튼 → 누르면 적용, 앱을 내렸다 오면 저절로 적용, 기록은 그대로', async () => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: 'Asia/Seoul' });
   await context.route(/supabase\.co|fonts\.(googleapis|gstatic)\.com/, r => r.abort());
-  const page = await context.newPage();
+  const page = await context.newPage(); page.setDefaultTimeout(+process.env.PWT || 30000);
   const errors = []; page.on('pageerror', e => errors.push(e.message));
   await page.goto(BASE);
   await page.waitForFunction(() => navigator.serviceWorker.controller);
