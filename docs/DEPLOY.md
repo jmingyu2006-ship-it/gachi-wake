@@ -17,7 +17,7 @@ Netlify, Cloudflare Pages, Vercel 같은 다른 정적 호스팅도 이 폴더�
 설정하지 않으면 다른 사람 창문은 **예시 데이터**(하루 5,000명 가정)로 보여요. 실제 사용자끼리 창문을 공유하려면:
 
 1. [supabase.com](https://supabase.com)에서 새 프로젝트를 만들어요.
-2. 왼쪽 **SQL Editor**에 `supabase.sql`을 붙여 넣고 실행한 다음, `supabase-rooms.sql`(우리 방), `supabase-profiles.sql`(방 프로필), `supabase-owner-accounts.sql`(방장·계정), `supabase-nickname.sql`(이름 바꾸기)도 차례로 실행해요.
+2. 왼쪽 **SQL Editor**에 `supabase.sql`을 붙여 넣고 실행한 다음, `supabase-rooms.sql`(우리 방), `supabase-profiles.sql`(방 프로필), `supabase-owner-accounts.sql`(방장·계정), `supabase-nickname.sql`(이름 바꾸기), `supabase-care.sql`(의견·신고·복구 코드·서버 기록 지우기·정리), `supabase-cron.sql`(매일 자동 정리)도 차례로 실행해요.
 3. **Project Settings → API**에서 `Project URL`과 `anon public` 키를 복사해요.
 4. `config.js`에 붙여 넣고 다시 올려요.
 
@@ -33,6 +33,8 @@ window.GACHI_CONFIG = {
 - 익명 사용자는 쓰기만 할 수 있고, 읽기는 구간별 인원 합계만 가능해요.
 - **우리 방**: 초대 링크(`?room=코드`)로 들어온 사람끼리만 닉네임과 하루 시작 시각(분)을 서로 볼 수 있어요. 방 안 사람에게도 기기 번호는 보이지 않아요. 틀린 초대 코드 시도는 같은 네트워크에서 하루 60번까지예요.
 - **방 프로필**: 방에 들어가 있는 동안 목표 시각과 최근 66일의 하루 시작 기록이 같은 방 사람에게 보여요 (연속 일수·최근 7일·최근 30일 계산용).
+
+- **개인정보 처리방침·이용약관**: `privacy.html`, `terms.html`. 문의 이메일을 보이게 하려면 `config.js`의 `contact`에 적어요 (비우면 GitHub 문의 게시판으로 안내). 운영 방법은 `OPERATIONS.md`에 있어요.
 
 ## 3. 업데이트할 때
 

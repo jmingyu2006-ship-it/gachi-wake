@@ -98,7 +98,18 @@
   .field input[type=password] { letter-spacing: 1px; }
   .check { display: flex; align-items: center; gap: 10px; font-size: 14px; color: var(--muted); margin: 2px 0 8px; min-height: 40px; }
   .check input { width: 20px; height: 20px; accent-color: var(--lit); flex: none; }
+  .check a, .legal-line a { color: var(--lit); }
+  .btn-col { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
+  .btn-col > .primary, .btn-col > .secondary { width: 100%; flex: none; display: flex; align-items: center; justify-content: center; text-decoration: none; color: inherit; }
+  .btn-col > .primary { color: var(--sun-ink); }
+  .card.warn { border-color: #6B5C92; background: #221C38; }
+  .card .row-actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .card .row-actions > * { flex: 1; min-height: 44px; }
+  .steps-ol { margin: 8px 0 0; padding-left: 20px; font-size: 14px; color: var(--muted); line-height: 1.8; }
+  .steps-ol b { color: var(--ink); }
+  .legal-line { font-size: 12.5px; color: var(--dim); text-align: center; line-height: 1.7; margin: 10px 0 0; }
   .ghost.wide { width: 100%; margin-top: 14px; min-height: 46px; }
+  .field textarea { min-height: 96px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface2); padding: 12px 14px; font-size: 16px; font-family: inherit; color: inherit; resize: vertical; line-height: 1.6; }
   .field input.code-input { font-family: var(--num); font-size: 22px; letter-spacing: 4px; text-align: center; text-transform: lowercase; }
   .field input.code-input::placeholder { letter-spacing: 1px; font-size: 16px; }
   .hint-small { font-size: 12.5px; color: var(--muted); margin-top: 4px; line-height: 1.5; }
@@ -251,7 +262,7 @@
   'use strict';
   var L = window.WakeLogic;
   var CFG = window.GACHI_CONFIG || {};
-  var K = { settings: 'gachi-v2-settings', records: 'gachi-v2-records', anon: 'gachi-anon-id', pending: 'gachi-v2-pending', v1: 'gachi-wake-v1', rooms: 'gachi-v2-rooms', view: 'gachi-v2-view', nick: 'gachi-v2-nick', pendingRoom: 'gachi-v2-pending-room', account: 'gachi-v2-account' };
+  var K = { settings: 'gachi-v2-settings', records: 'gachi-v2-records', anon: 'gachi-anon-id', pending: 'gachi-v2-pending', v1: 'gachi-wake-v1', rooms: 'gachi-v2-rooms', view: 'gachi-v2-view', nick: 'gachi-v2-nick', pendingRoom: 'gachi-v2-pending-room', account: 'gachi-v2-account', consent: 'gachi-v2-consent', age14: 'gachi-v2-age14', reminder: 'gachi-v2-reminder', installHide: 'gachi-v2-install-hide' };
   var TRIAL_TIMES = [348, 402, 435, 480, 570, 740];
   var ACTIONS = ['커튼 열고 햇빛 보기', '물 한 잔 마시기', '이불 개기', '스트레칭 1분'];
   var AGES = [{ id: '10', label: '10대', sleep: 9 }, { id: '20', label: '20대', sleep: 8 }, { id: '30', label: '30대 이상', sleep: 8 }];
@@ -260,8 +271,10 @@
   var state = {
     tab: 'today', settings: null, records: [], trial: null, justStarted: null,
     crowd: null, crowdDay: null, serverOk: null, clearArmed: false, saving: Promise.resolve(), ob: null, edit: null,
-    rooms: [], view: 'all', roomData: {}, roomSeen: {}, nick: '', invite: null, leaveArmed: false, account: null
+    rooms: [], view: 'all', roomData: {}, roomSeen: {}, nick: '', invite: null, leaveArmed: false, account: null, features: []
   };
+  var APP_VERSION = 'v0.6.0';
+  function has(f) { return state.features.indexOf(f) >= 0; }
 
   // ---------- 기기 저장 ----------
   var Local = {
@@ -551,7 +564,7 @@
     var plan = L.planInfo(s, key);
     var room = currentRoom();
     state.leaveArmed = false;
-    var html = (Server.on ? switchHtml() : '') + (room ? roomSceneHtml(room) : '<div id="sceneSlot"></div>');
+    var html = (Server.on ? switchHtml() : '') + (room ? roomSceneHtml(room) : '<div id="sceneSlot"></div>'), trialLink = '';
     if (rec) {
       var ev = L.evaluate(rec);
       var title, sub, badge;
@@ -578,6 +591,8 @@
         (rec.actionDoneAt ? '<span class="done">' + CHECK + '했어요</span>' : '<button type="button" class="ghost" id="actionBtn">했어요</button>') + '</section>';
       html += '<section class="card action"><div><div class="label">같이 일어날 사람이 늘수록 창문이 많아져요</div><div class="action-text">친구 창문도 켜 주기</div></div>' +
         '<button type="button" class="ghost" data-share>공유</button></section>';
+      if (!state.trial) html += '<section class="card action"><div><div class="label">스토리·단톡방에 올리기 좋게</div><div class="action-text">오늘 기록 이미지</div></div>' +
+        '<button type="button" class="ghost" data-share-image>만들기</button></section>';
       var tomorrow = L.planTargetFor(s, L.addDays(key, 1));
       html += '<section class="card tip">' + MOON + '<div>내일 목표는 <b class="num">' + L.formatMinute(tomorrow) + '</b>예요. 오늘 밤 <b class="num">' +
         L.bedtimeFor(tomorrow, s.sleepNeedH) + '</b>쯤 누우면 ' + s.sleepNeedH + '시간 잘 수 있어요.</div></section>';
@@ -590,15 +605,17 @@
         html += '<div class="hint">' + (diff > 0 ? '목표까지 ' + dur(diff) + ' 남았어요' : (diff >= -L.HIT_TOL ? '지금 시작하면 목표 달성이에요' : '목표 시각이 지났어요. 지금 시작해도 기록돼요')) + '</div></section>';
         html += '<button type="button" class="start-btn" id="startBtn">' + SUN + '하루 시작하기</button>';
       } else if (phase === 'before') {
-        html += '<div class="hint">아직 새벽 4시 전이에요. 4시부터 기록할 수 있어요.</div></section>';
+        var sleepLeft = plan.today - min;
+        html += '<div class="hint">지금은 잘 시간이에요. 지금 잠들면 목표까지 <b class="num" style="white-space:nowrap">' + dur(sleepLeft) + '</b> 잘 수 있어요. 기록은 새벽 4시부터 할 수 있어요.</div></section>';
         html += '<button type="button" class="start-btn" disabled>' + SUN + '4시부터 시작할 수 있어요</button>';
-        if (!state.trial) html += '<div class="center"><button type="button" class="link-btn" data-open-trial>아침 시간으로 체험해보기</button></div>';
+        if (!state.trial) trialLink = '<div class="center"><button type="button" class="link-btn" data-open-trial>아침 시간으로 체험해보기</button></div>';
       } else {
         var tm = L.planTargetFor(s, L.addDays(key, 1));
         html += '<div class="hint">오늘 기록은 오후 2시에 마감됐어요. 내일 목표는 <b class="num">' + L.formatMinute(tm) + '</b>, 오늘 밤 <b class="num">' + L.bedtimeFor(tm, s.sleepNeedH) + '</b>쯤 누워보세요.</div></section>';
-        if (!state.trial) html += '<div class="center"><button type="button" class="link-btn" data-open-trial>아침 시간으로 체험해보기</button></div>';
+        if (!state.trial) trialLink = '<div class="center"><button type="button" class="link-btn" data-open-trial>아침 시간으로 체험해보기</button></div>';
       }
     }
+    html += extraCardsHtml(now, rec) + trialLink;
     if (room) {
       html += '<section class="card action"><div><div class="label">초대 코드 <span class="code">' + esc(room.code) + '</span></div><div class="action-text">친구 초대하기</div></div>' +
         '<button type="button" class="ghost" data-invite>초대</button></section>' +
@@ -613,6 +630,7 @@
       document.getElementById('sceneSlot').appendChild(scene);
       updateScene();
     }
+    bindExtraCards(view);
     var b = document.getElementById('startBtn'); if (b) b.addEventListener('click', onStart);
     var a = document.getElementById('actionBtn'); if (a) a.addEventListener('click', onAction);
   }
@@ -669,6 +687,7 @@
     });
     html += '</div><div class="legend"><span><i style="background:#5BD6A0"></i>목표 달성</span><span><i style="background:#FFC75A"></i>+16~60분</span><span><i style="background:#3A3350"></i>그보다 늦음</span></div></div>';
     if (recs.length) html += '<div class="card"><div class="label" style="margin-bottom:8px">최근 14일 · 점선은 목표</div>' + chartSVG(st) + '</div>';
+    if (recs.length) html += '<section class="card action"><div><div class="label">내 습관을 친구에게</div><div class="action-text">기록 이미지 만들기</div></div><button type="button" class="ghost" data-share-image>만들기</button></section>';
     html += '<div class="stats">' +
       '<div class="card stat"><div class="label">목표 달성</div><div class="stat-num num">' + st.hit7 + '<span style="font-size:14px;color:var(--muted)"> / ' + st.rec7 + '일</span></div><div class="stat-note">최근 7일</div></div>' +
       '<div class="card stat"><div class="label">흔들림</div><div class="stat-num num">' + (st.wobble === null ? '—' : '±' + st.wobble + '분') + '</div><div class="stat-note">' + (st.wobble === null ? '3일 이상 기록하면 보여요' : '작을수록 규칙적') + '</div></div>' +
@@ -682,6 +701,172 @@
     html += '</section>';
     view.innerHTML = html;
   }
+
+  // ---------- 알림·설치 안내 ----------
+  var UA = navigator.userAgent || '';
+  var ENV = {
+    framed: (function () { try { return window.top !== window.self; } catch (e) { return true; } })(),
+    standalone: (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true,
+    ios: /iPhone|iPad|iPod/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1),
+    kakao: /KAKAOTALK/i.test(UA),
+    inApp: /KAKAOTALK|Instagram|FBAN|FBAV|NAVER\(inapp|; Line\/|everytimeApp|DaumApps|BAND\//i.test(UA)
+  };
+  var installEvt = null;
+  window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); installEvt = e; if (state.settings && state.tab === 'today') render(); });
+  function reminderFromKey(now) { return L.dayPhase(L.minuteOfDay(now)) === 'before' ? L.toDateKey(now) : L.addDays(L.toDateKey(now), 1); }
+  function extraCardsHtml(now, rec) {
+    var s = state.settings, html = '', phase = L.dayPhase(L.minuteOfDay(now));
+    if (state.trial) return '';
+    if (ENV.inApp && !ENV.framed) {
+      html += '<section class="card warn" aria-label="브라우저 안내"><div class="label">' + (ENV.kakao ? '카카오톡' : '다른 앱') + ' 안에서 열었어요</div>' +
+        '<div class="action-text" style="margin-top:4px">Safari나 Chrome에서 열어 주세요</div>' +
+        '<p class="status-sub">앱 안 브라우저는 기록이 지워지거나 따로 저장될 수 있어요.' + (ENV.kakao ? '' : ' 오른쪽 위나 아래의 ⋯ 메뉴에서 \'다른 브라우저로 열기\'를 눌러 주세요.') + '</p>' +
+        '<div class="row-actions">' + (ENV.kakao ? '<button type="button" class="primary" data-open-external>Safari·Chrome으로 열기</button>' : '<button type="button" class="ghost" data-copy-url>주소 복사</button>') + '</div></section>';
+    }
+    var rem = Local.get(K.reminder), sig = L.reminderSig(s);
+    if ((!rem || rem.sig !== sig) && (phase !== 'open' || rec)) {
+      html += '<section class="card action"><div><div class="label">' + (rem ? '목표가 바뀌었어요' : (phase === 'before' ? '오늘 아침을 위해' : '내일 아침을 위해')) + '</div><div class="action-text">' + (rem ? '알림 다시 맞추기' : '아침 알림 맞추기') + '</div></div>' +
+        '<button type="button" class="ghost" data-reminder>맞추기</button></section>';
+    }
+    if (!ENV.standalone && !ENV.inApp && !ENV.framed && !Local.get(K.installHide) && (ENV.ios || installEvt) && /^https?:$/.test(location.protocol)) {
+      html += '<section class="card" aria-label="홈 화면에 추가"><div class="label">매일 아침 한 번에 열리게</div><div class="action-text" style="margin-top:4px">홈 화면에 추가해 두세요</div>' +
+        (installEvt ? '' : '<ol class="steps-ol"><li>아래(또는 위) 막대의 <b>공유 버튼</b> <span aria-hidden="true">⎙</span>을 눌러요</li><li><b>홈 화면에 추가</b>를 눌러요</li><li>홈 화면의 \'같이 일어나요\' 아이콘으로 열어요</li></ol>') +
+        '<div class="row-actions">' + (installEvt ? '<button type="button" class="primary" data-install>앱으로 설치</button>' : '') +
+        '<button type="button" class="ghost" data-install-hide>이미 했어요</button></div></section>';
+    }
+    return html;
+  }
+  function bindExtraCards(root) {
+    root.querySelectorAll('[data-reminder]').forEach(function (b) { b.addEventListener('click', openReminder); });
+    root.querySelectorAll('[data-install-hide]').forEach(function (b) { b.addEventListener('click', function () { Local.set(K.installHide, true); render(); }); });
+    root.querySelectorAll('[data-install]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        if (!installEvt) return;
+        installEvt.prompt();
+        (installEvt.userChoice || Promise.resolve({})).then(function (c) { if (c && c.outcome === 'accepted') Local.set(K.installHide, true); installEvt = null; render(); });
+      });
+    });
+    root.querySelectorAll('[data-open-external]').forEach(function (b) {
+      b.addEventListener('click', function () { location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(location.href); });
+    });
+    root.querySelectorAll('[data-copy-url]').forEach(function (b) {
+      b.addEventListener('click', function () {
+        var u = siteUrl() || location.href;
+        if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(u).then(function () { toast('주소를 복사했어요. Safari나 Chrome에 붙여 넣어 주세요.'); }, function () { toast(u); });
+        else toast(u);
+      });
+    });
+  }
+  function openReminder() {
+    var s = state.settings, now = effectiveNow(), from = reminderFromKey(now), stages = L.reminderStages(s, from);
+    var first = stages[0], last = stages[stages.length - 1];
+    var when = stages.length > 1
+      ? (from === L.toDateKey(now) ? '오늘' : '내일') + ' <b class="num">' + L.formatMinute(first.min) + '</b>부터, 단계 목표에 맞춰 당겨져서 ' + Number(last.start.slice(5, 7)) + '월 ' + Number(last.start.slice(8)) + '일부터 매일 <b class="num">' + L.formatMinute(last.min) + '</b>'
+      : (from === L.toDateKey(now) ? '오늘' : '내일') + '부터 매일 <b class="num">' + L.formatMinute(first.min) + '</b>';
+    var el = document.getElementById('sheetBody');
+    el.innerHTML = '<h2 id="sheetTitle">아침 알림 맞추기</h2><p class="lead">목표 시각에 캘린더 알림이 와요. 깨우는 알람이 아니라, 일어난 뒤 \'하루 시작하기\'를 잊지 않게 알려 주는 알림이에요.</p>' +
+      '<div class="note">' + when + '</div>' +
+      '<div class="btn-col"><button type="button" class="primary" id="icsBtn">아이폰·맥 캘린더에 추가</button>' +
+      '<a class="secondary" id="gcalBtn" href="' + esc(L.googleReminderUrl(s, from, siteUrl())) + '" target="_blank" rel="noopener">구글 캘린더에 추가</a></div>' +
+      '<p class="hint-small">구글 캘린더는 첫 목표 시각으로 매일 반복돼요' + (stages.length > 1 ? ' (단계 목표가 바뀌면 다시 추가해 주세요)' : '') + '. 목표를 바꾸면 예전 알림은 캘린더에서 지워 주세요.</p>' +
+      '<button type="button" class="close-btn" id="closeSheet">닫기</button>';
+    document.getElementById('sheet').hidden = false;
+    var done = function () { Local.set(K.reminder, { sig: L.reminderSig(s), at: L.toDateKey(now) }); };
+    el.querySelector('#closeSheet').addEventListener('click', function () { closeSheet(); render(); });
+    el.querySelector('#gcalBtn').addEventListener('click', function () { done(); setTimeout(function () { closeSheet(); render(); }, 300); });
+    el.querySelector('#icsBtn').addEventListener('click', function () {
+      var ics = L.reminderIcs(s, from, siteUrl(), new Date().toISOString());
+      var url = URL.createObjectURL(new Blob([ics], { type: 'text/calendar;charset=utf-8' }));
+      if (ENV.ios) { var w = window.open(url, '_blank'); if (!w) location.href = url; }
+      else { var a = document.createElement('a'); a.href = url; a.download = 'gachi-wake-morning.ics'; document.body.appendChild(a); a.click(); a.remove(); }
+      setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+      done(); closeSheet(); render();
+      toast(ENV.ios ? '캘린더 화면에서 \'모두 추가\'를 누르면 끝이에요.' : '받은 파일을 열어 캘린더에 추가해 주세요.');
+    });
+    el.querySelector('h2').setAttribute('tabindex', '-1'); el.querySelector('h2').focus();
+  }
+
+  // ---------- 기록 이미지 (1080×1920, 인스타 스토리 비율) ----------
+  function roundRect(g, x, y, w, h, r) { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); }
+  function drawShareCard() {
+    var W = 1080, H = 1920, c = document.createElement('canvas'); c.width = W; c.height = H;
+    var g = c.getContext('2d'), now = effectiveNow(), key = L.toDateKey(now), recs = currentRecords(), s = state.settings;
+    var rec = L.findDay(recs, key), ev = rec ? L.evaluate(rec) : null, streak = L.localStreak(recs, key), st = L.habitStats(recs, key, s);
+    var KR = '"Noto Sans KR", -apple-system, "Apple SD Gothic Neo", sans-serif', NUM = '"Space Grotesk", ' + KR;
+    var bg = g.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, '#0B1020'); bg.addColorStop(0.55, rec ? '#1A2142' : '#121A2E'); bg.addColorStop(1, rec ? '#4A2A2E' : '#141B30');
+    g.fillStyle = bg; g.fillRect(0, 0, W, H);
+    if (rec) { var glow = g.createRadialGradient(W / 2, H + 120, 40, W / 2, H + 120, 900); glow.addColorStop(0, 'rgba(255,138,76,.55)'); glow.addColorStop(1, 'rgba(255,138,76,0)'); g.fillStyle = glow; g.fillRect(0, 0, W, H); }
+    var rnd = L.hashString ? L.hashString(key) : 7;
+    for (var i = 0; i < 60; i++) { rnd = (rnd * 1103515245 + 12345) & 0x7fffffff; var sx = rnd % W; rnd = (rnd * 1103515245 + 12345) & 0x7fffffff; var sy = rnd % 700; g.fillStyle = 'rgba(244,241,234,' + (0.25 + (i % 5) / 10) + ')'; g.fillRect(sx, sy + 40, 3, 3); }
+    g.textAlign = 'left'; g.fillStyle = '#F4F1EA'; g.font = '900 46px ' + KR; g.fillText('같이 일어나요', 90, 150);
+    g.fillStyle = '#A6ADBF'; g.font = '500 34px ' + KR; g.fillText(now.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' }), 90, 205);
+    g.textAlign = 'center';
+    if (rec) {
+      g.fillStyle = '#FFC75A'; g.font = '700 230px ' + NUM; g.fillText(L.formatMinute(rec.minuteOfDay), W / 2, 520);
+      g.fillStyle = '#F4F1EA'; g.font = '700 58px ' + KR; g.fillText('하루를 시작했어요', W / 2, 610);
+      var badge = ev.status === 'hit' ? '목표 달성' : ev.status === 'close' ? '목표보다 ' + ev.diff + '분 늦었지만 시작' : ev.status === 'late' ? '늦어도 시작한 게 중요해요' : '';
+      if (badge) { g.font = '700 38px ' + KR; var bw = g.measureText(badge).width + 70; g.fillStyle = ev.status === 'hit' ? 'rgba(91,214,160,.18)' : 'rgba(255,199,90,.16)'; roundRect(g, W / 2 - bw / 2, 655, bw, 72, 36); g.fill(); g.fillStyle = ev.status === 'hit' ? '#5BD6A0' : '#FFC75A'; g.fillText(badge, W / 2, 704); }
+    } else {
+      g.fillStyle = '#F4F1EA'; g.font = '900 96px ' + KR; g.fillText('일찍보다 일정하게', W / 2, 520);
+      g.fillStyle = '#A6ADBF'; g.font = '500 44px ' + KR; g.fillText('목표 ' + L.formatMinute(L.planTargetFor(s, key)) + '에 하루 시작하기', W / 2, 600);
+    }
+    // 건물: 최근 48일 = 창문 48개 (불 켜진 칸 = 하루를 시작한 날, 마지막 칸 = 오늘)
+    var days = L.recentDays(recs, key, 48), bx = 190, by = 820, cols = 8, ww = 70, wh = 62, gap = 18, bwid = cols * ww + (cols - 1) * gap + 80;
+    g.fillStyle = '#1B2238'; roundRect(g, (W - bwid) / 2, by - 50, bwid, 6 * wh + 5 * gap + 100, 28); g.fill();
+    g.strokeStyle = '#2B3450'; g.lineWidth = 3; g.stroke();
+    bx = (W - (cols * ww + (cols - 1) * gap)) / 2;
+    days.forEach(function (on, k) {
+      var x = bx + (k % cols) * (ww + gap), y = by + Math.floor(k / cols) * (wh + gap), today = k === days.length - 1;
+      if (on) { g.shadowColor = 'rgba(255,199,90,.7)'; g.shadowBlur = 24; }
+      g.fillStyle = on ? (today ? '#FFE7A8' : '#FFC75A') : '#283049'; roundRect(g, x, y, ww, wh, 10); g.fill(); g.shadowBlur = 0;
+    });
+    var lit = days.filter(Boolean).length, yb = by + 6 * wh + 5 * gap + 120;
+    g.fillStyle = '#A6ADBF'; g.font = '500 36px ' + KR; g.fillText('최근 48일 중 ' + lit + '일 불을 켰어요', W / 2, yb);
+    // 숫자 두 개
+    var boxes = [['연속', streak + '일'], ['66일 여정', st.journeyDays + ' / 66']];
+    boxes.forEach(function (b, k) {
+      var x = 90 + k * 470, y = yb + 70;
+      g.fillStyle = 'rgba(23,29,48,.9)'; roundRect(g, x, y, 430, 210, 32); g.fill(); g.strokeStyle = '#2B3450'; g.stroke();
+      g.textAlign = 'left'; g.fillStyle = '#A6ADBF'; g.font = '500 34px ' + KR; g.fillText(b[0], x + 40, y + 70);
+      g.fillStyle = '#F4F1EA'; g.font = '700 84px ' + NUM; g.fillText(b[1], x + 40, y + 165);
+    });
+    g.textAlign = 'center'; g.fillStyle = '#7E869B'; g.font = '500 32px ' + KR;
+    var url = (siteUrl() || 'https://jmingyu2006-ship-it.github.io/gachi-wake/').replace(/^https?:\/\//, '').replace(/\/(index\.html)?$/, '');
+    g.fillText('같이 하루를 시작해요 · ' + url, W / 2, H - 90);
+    return c;
+  }
+  function openShareImage() {
+    var el = document.getElementById('sheetBody');
+    el.innerHTML = '<h2 id="sheetTitle">기록 이미지</h2><p class="lead">이름이나 기기 정보는 들어가지 않아요. 시각, 연속 일수, 최근 48일 기록만 담겨요.</p>' +
+      '<div style="text-align:center;margin:8px 0 4px"><img id="shareImg" alt="기록 이미지 미리보기" style="width:62%;max-width:260px;border-radius:16px;border:1px solid var(--line)"></div>' +
+      '<div class="btn-col"><button type="button" class="primary" id="shareImgGo" disabled>공유하기</button><button type="button" class="secondary" id="shareImgSave" disabled>이미지 저장</button></div>' +
+      '<button type="button" class="close-btn" id="closeSheet">닫기</button>';
+    document.getElementById('sheet').hidden = false;
+    el.querySelector('#closeSheet').addEventListener('click', closeSheet);
+    var fontsReady = document.fonts && document.fonts.load ? Promise.all([document.fonts.load('900 40px "Noto Sans KR"'), document.fonts.load('700 40px "Space Grotesk"')]).catch(function () {}) : Promise.resolve();
+    var blob = null;
+    Promise.race([fontsReady, delay(1500)]).then(function () {
+      var c = drawShareCard();
+      el.querySelector('#shareImg').src = c.toDataURL('image/png');
+      c.toBlob(function (b) { blob = b; el.querySelectorAll('#shareImgGo, #shareImgSave').forEach(function (x) { x.disabled = false; }); }, 'image/png');
+    });
+    var file = function () { return blob ? new File([blob], 'gachi-wake-' + L.toDateKey(effectiveNow()) + '.png', { type: 'image/png' }) : null; };
+    var save = function () {
+      var f = file(); if (!f) return;
+      var u = URL.createObjectURL(f), a = document.createElement('a'); a.href = u; a.download = f.name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(u); }, 60000);
+      toast(ENV.ios ? '이미지를 길게 눌러 \'사진에 저장\'을 할 수도 있어요.' : '이미지를 저장했어요.');
+    };
+    el.querySelector('#shareImgSave').addEventListener('click', save);
+    el.querySelector('#shareImgGo').addEventListener('click', function () {
+      var f = file(); if (!f) return;
+      if (navigator.canShare && navigator.canShare({ files: [f] })) {
+        navigator.share({ files: [f], title: '같이 일어나요', text: '오늘도 하루 시작! ' + (siteUrl() || '') }).catch(function (e) { if (!e || e.name !== 'AbortError') save(); });
+      } else save();
+    });
+  }
+  view.addEventListener('click', function (e) { if (e.target.closest('[data-share-image]')) openShareImage(); });
 
   // ---------- 동작 ----------
   function onStart(e) {
@@ -784,6 +969,9 @@
         '<div class="note"><b>일찍보다 일정하게.</b> 매일 비슷한 시각에 일어나는 규칙성이 수면 시간보다 건강을 더 잘 예측했다는 연구가 있어요. 그래서 순위 대신 내 목표와 흔들림을 보여줘요.</div>' +
         '<div class="note">하루를 시작하면 내 창문에 불이 켜지고, 오늘 이미 시작한 사람들의 창문이 함께 보여요.</div>';
       if (Server.on) body += '<div class="center"><button type="button" class="link-btn" data-ob-login>이미 계정이 있어요 · 로그인</button></div>';
+      body += '<p class="legal-line">시작하면 ' + legalLinks() + '에 동의하는 것으로 봐요.</p>';
+      if (ENV.inApp && !ENV.framed) body = '<div class="note" style="border-color:#6B5C92;background:#221C38"><b>' + (ENV.kakao ? '카카오톡' : '다른 앱') + ' 안에서 열었어요.</b> 기록이 안전하게 남도록 Safari나 Chrome에서 열어 주세요.' +
+        (ENV.kakao ? '<div style="margin-top:10px"><button type="button" class="secondary" data-open-external style="width:100%;min-height:48px">Safari·Chrome으로 열기</button></div>' : ' ⋯ 메뉴에서 \'다른 브라우저로 열기\'를 눌러요.') + '</div>' + body;
       foot = '<button type="button" class="primary" data-ob="next">목표 정하기</button>';
     } else if (ob.step === 1) {
       body = '<h1 id="obTitle">요즘 보통 몇 시에<br>하루를 시작해요?</h1><p>정확하지 않아도 괜찮아요. 최근 일주일의 평소 시각이면 돼요.</p>' + timeControl('baselineMin', ob.baselineMin);
@@ -805,6 +993,7 @@
   }
   document.getElementById('obBody').addEventListener('click', function (e) {
     if (e.target.closest('[data-ob-login]')) return openLogin();
+    if (e.target.closest('[data-open-external]')) { location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(location.href); return; }
     var b = e.target.closest('[data-ob]'); if (!b) return;
     var ob = state.ob, el = document.getElementById('obBody');
     if (b.dataset.ob === 'next') { ob.step++; if (ob.step === 2 && ob.targetMin > ob.baselineMin + 120) ob.targetMin = Math.min(L.TARGET_MIN_HI, ob.baselineMin); return renderOnboarding(); }
@@ -836,9 +1025,14 @@
       '<div class="section-label">일어나서 바로 할 한 가지</div>' + actionPicker(m) +
       '<div class="section-label">나이대</div>' + agePicker(m) + '<div class="err" id="setErr" role="alert"></div>' +
       '<button type="button" class="primary" id="saveSettings" style="width:100%">저장</button>' +
-      '<button type="button" class="danger" id="clearAll">기록 모두 지우기</button>' +
+      '<div class="section-label">아침 알림</div><button type="button" class="secondary" id="setReminder" style="width:100%;min-height:48px">캘린더에 아침 알림 추가</button>' +
+      '<div class="section-label">내 기록</div><button type="button" class="secondary" id="exportCsv" style="width:100%;min-height:48px">기록 내보내기 (엑셀·CSV)</button>' +
+      '<button type="button" class="danger" id="clearAll">이 기기의 기록 모두 지우기</button>' +
+      (has('erase') ? '<button type="button" class="danger" id="eraseServer">서버에 있는 내 기록 지우기</button><p class="hint-small">모든 방에서 나가고, 방 친구에게 보이던 기록과 전체 창문 기록을 지워요. 이 기기의 기록과 계정은 그대로예요.</p>' : '') +
       (Server.on ? accountSectionHtml() : '') +
-      '<p class="server-line">' + (Server.on ? '공유 서버에 연결된 버전이에요. 서버에는 익명 기기 번호·날짜·30분 구간만 보내요.' : '공유 서버 없이 예시 창문을 보여주는 버전이에요. 내 기록은 이 기기에만 저장돼요.') + '</p>' +
+      (has('report') ? '<div class="section-label">도움</div><button type="button" class="secondary" id="sendFeedback" style="width:100%;min-height:48px">의견·문의 보내기</button>' : '') +
+      '<p class="server-line">' + (Server.on ? '공유 서버에 연결된 버전이에요. 전체 창문에는 익명 기기 번호·날짜·30분 구간만 보내요. 방에 들어가면 방에서 쓰는 이름과 시작 시각이 그 방 사람들에게만 보여요.' : '공유 서버 없이 예시 창문을 보여주는 버전이에요. 내 기록은 이 기기에만 저장돼요.') + '</p>' +
+      '<p class="legal-line">' + legalLinks() + (Server.on ? '<br>내 기기 번호 앞 8자리 <span class="code">' + esc(String(anonId).slice(0, 8)) + '</span> (문의할 때 알려 주세요)' : '') + '</p>' +
       '<button type="button" class="close-btn" id="closeSheet">닫기</button>';
     bindSteppers(el, m, RANGES); bindActionPicker(el, m); bindAgePicker(el, m);
     document.getElementById('sheet').hidden = false;
@@ -851,6 +1045,26 @@
       if (!made.ok) { el.querySelector('#setErr').textContent = made.errors[0]; return; }
       made.settings.age = age.id;
       saveSettings(made.settings); closeSheet(); render(); toast('저장했어요.');
+    });
+    el.querySelector('#setReminder').addEventListener('click', openReminder);
+    if (el.querySelector('#sendFeedback')) el.querySelector('#sendFeedback').addEventListener('click', openFeedback);
+    if (el.querySelector('#eraseServer')) el.querySelector('#eraseServer').addEventListener('click', function (e) {
+      var btn = e.currentTarget;
+      if (!btn.dataset.armed) { btn.dataset.armed = '1'; btn.textContent = '한 번 더 누르면 서버의 내 기록을 지워요'; return; }
+      btn.disabled = true;
+      Server.rpc('delete_my_data', { p_anon: anonId }).then(function (res) {
+        if (!res || !res.ok) throw new Error('fail');
+        state.rooms = []; state.roomData = {}; saveRooms(); setView('all'); Local.del(K.pendingRoom);
+        closeSheet(); render(); toast('서버에 있는 내 기록을 지웠어요. 방에서도 모두 나갔어요.');
+      }).catch(function () { btn.disabled = false; toast('연결이 불안정해요. 잠시 후 다시 시도해 주세요.'); });
+    });
+    el.querySelector('#exportCsv').addEventListener('click', function () {
+      if (!state.records.length) { toast('아직 내보낼 기록이 없어요.'); return; }
+      var f = new File([L.recordsCsv(state.records)], 'gachi-wake-records-' + L.toDateKey(realNow()) + '.csv', { type: 'text/csv;charset=utf-8' });
+      if (ENV.ios && navigator.canShare && navigator.canShare({ files: [f] })) { navigator.share({ files: [f] }).catch(function () {}); return; }
+      var u = URL.createObjectURL(f), a = document.createElement('a'); a.href = u; a.download = f.name; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(function () { URL.revokeObjectURL(u); }, 60000);
+      toast(state.records.length + '일 기록을 내보냈어요.');
     });
     el.querySelector('#clearAll').addEventListener('click', function (e) {
       if (!state.clearArmed) { state.clearArmed = true; e.currentTarget.textContent = '한 번 더 누르면 모든 기록이 지워져요'; return; }
@@ -896,6 +1110,10 @@
   function siteUrl() {
     if (window.GACHI_SITE_URL) return window.GACHI_SITE_URL;
     return /^https?:$/.test(location.protocol) ? location.origin + location.pathname : '';
+  }
+  function legalUrl(name) { return (siteUrl() || 'https://jmingyu2006-ship-it.github.io/gachi-wake/').replace(/[^\/]*$/, '') + name; }
+  function legalLinks() {
+    return '<a href="' + legalUrl('terms.html') + '" target="_blank" rel="noopener">이용약관</a>과 <a href="' + legalUrl('privacy.html') + '" target="_blank" rel="noopener">개인정보 처리방침</a>';
   }
   function copyLink(url, text) {
     var fallback = function () { toast(url ? '이 주소를 보내 주세요: ' + url : '아직 공유할 주소가 없어요.'); };
@@ -986,10 +1204,13 @@
         (p.target ? '목표 달성 ' + p.hits + '일' : p.weekCount + '일 기록') + '</div></div><div class="week">' + cells + '</div>' +
         (p.avg7 ? '<p class="status-sub">최근 7일 평균 ' + p.avg7 + '에 시작' + (p.target ? ' · 목표 ' + p.target : '') + '</p>' : '') + '</div>' +
       (p.me ? '<div id="nickBox"><button type="button" class="ghost wide" id="nickEdit">이름 바꾸기</button></div>' : '') +
+      (!p.me && p.key && has('report') ? '<div class="center"><button type="button" class="link-btn quiet" id="reportBtn">신고하기</button></div>' : '') +
       (canKick ? '<button type="button" class="danger" id="kickBtn">이 방에서 내보내기</button><p class="hint-small" style="text-align:center">내보낸 사람은 이 방에 다시 들어올 수 없어요.</p>' : '') +
       '<button type="button" class="close-btn" id="closeSheet">닫기</button>';
     document.getElementById('sheet').hidden = false;
     el.querySelector('#closeSheet').addEventListener('click', closeSheet);
+    var rb = el.querySelector('#reportBtn');
+    if (rb) rb.addEventListener('click', function () { openReport(room, p); });
     var ne = el.querySelector('#nickEdit');
     if (ne) ne.addEventListener('click', function () { openNickEdit(el.querySelector('#nickBox'), room, p.name); });
     var kb = el.querySelector('#kickBtn');
@@ -1083,13 +1304,23 @@
       state.roomData[code] = { view: (state.roomData[code] || {}).view || null, at: Date.now(), error: true };
     }).then(function () { if (state.tab === 'today' && state.view === code) updateRoomScene(); });
   }
+  function needsAgeCheck() { return !!state.settings && state.settings.age === '10' && !Local.get(K.age14); }
+  function ageField() {
+    return needsAgeCheck() ? '<label class="check"><input type="checkbox" id="age14"> 만 14세 이상이에요 (방은 만 14세 이상만 쓸 수 있어요)</label>' : '';
+  }
+  function ageOk(root, err) {
+    var c = root.querySelector('#age14');
+    if (c && !c.checked) { err.textContent = '방은 만 14세 이상만 만들거나 들어갈 수 있어요.'; return false; }
+    if (c) Local.set(K.age14, true);
+    return true;
+  }
   function nickField(id) {
     return '<div class="field"><label for="' + id + '">방에서 보일 내 이름 (10자까지)</label><input id="' + id + '" maxlength="10" autocomplete="nickname" value="' + esc(state.nick || '') + '"></div>';
   }
   function openCreateRoom() {
     var el = document.getElementById('sheetBody');
     el.innerHTML = '<h2 id="sheetTitle">우리 방 만들기</h2><p class="lead">초대 링크나 초대 코드를 받은 친구만 들어올 수 있어요. 방 안에서는 서로의 이름, 목표 시각, 최근 66일의 하루 시작 기록(연속 일수 등)이 보여요.</p>' +
-      '<div class="field"><label for="roomName">방 이름 (20자까지)</label><input id="roomName" maxlength="20" value="우리 방"></div>' + nickField('nick') +
+      '<div class="field"><label for="roomName">방 이름 (20자까지)</label><input id="roomName" maxlength="20" value="우리 방"></div>' + nickField('nick') + ageField() +
       '<div class="err" id="roomErr" role="alert"></div><button type="button" class="primary" id="doCreate" style="width:100%;margin-top:6px">방 만들기</button>' +
       '<button type="button" class="close-btn" id="closeSheet">닫기</button>';
     document.getElementById('sheet').hidden = false;
@@ -1100,6 +1331,7 @@
       var name = L.sanitizeName(el.querySelector('#roomName').value, 20), nick = L.sanitizeName(el.querySelector('#nick').value, 10);
       if (!name) { err.textContent = ROOM_ERR.bad_room_name; return; }
       if (!nick) { err.textContent = '방에서 보일 이름을 적어 주세요.'; return; }
+      if (!ageOk(el, err)) return;
       btn.disabled = true; err.textContent = '';
       Server.rpc('create_room', { p_anon: anonId, p_name: name, p_nickname: nick }).then(function (code) {
         if (!L.parseRoomCode(String(code))) throw new Error('bad_response');
@@ -1121,7 +1353,7 @@
       var el = document.getElementById('sheetBody');
       el.innerHTML = '<h2 id="sheetTitle">\'' + esc(L.sanitizeName(String(p.name || ''), 20)) + '\' 방에 초대됐어요</h2>' +
         '<p class="lead">지금 ' + Number(p.members || 0) + '명이 있어요. 들어가면 서로의 이름, 목표 시각, 최근 66일의 하루 시작 기록(연속 일수 등)이 이 방 사람들에게 보여요. 전체 사용자 건물에는 지금처럼 이름 없이 보여요.</p>' +
-        nickField('joinNick') + '<div class="err" id="joinErr" role="alert"></div>' +
+        nickField('joinNick') + ageField() + '<div class="err" id="joinErr" role="alert"></div>' +
         '<button type="button" class="primary" id="doJoin" style="width:100%;margin-top:6px">들어가기</button><button type="button" class="close-btn" id="closeSheet">나중에</button>';
       document.getElementById('sheet').hidden = false;
       el.querySelector('#closeSheet').addEventListener('click', function () { state.invite = null; closeSheet(); });
@@ -1129,6 +1361,7 @@
       el.querySelector('#doJoin').addEventListener('click', function (e) {
         var btn = e.currentTarget, err = el.querySelector('#joinErr'), nick = L.sanitizeName(el.querySelector('#joinNick').value, 10);
         if (!nick) { err.textContent = '방에서 보일 이름을 적어 주세요.'; return; }
+        if (!ageOk(el, err)) return;
         btn.disabled = true; err.textContent = '';
         Server.rpc('join_room', { p_anon: anonId, p_code: code, p_nickname: nick }).then(function (res) {
           if (!res || res.error) { btn.disabled = false; err.textContent = roomErr(res && res.error); return; }
@@ -1202,6 +1435,68 @@
     clearTimeout(toastTimer); toastTimer = setTimeout(function () { t.classList.remove('show'); }, 3200);
   }
 
+  // ---------- 의견·신고·오류 (운영자에게만) ----------
+  var REPORT_ERR = { empty: '내용을 적어 주세요.', rate_limited: '오늘은 더 보낼 수 없어요. 내일 다시 보내 주세요.', not_member: '이 방에 들어가 있지 않아요.', member_not_found: '이미 방에 없는 사람이에요.' };
+  function reportMeta() { return APP_VERSION + ' · ' + (ENV.standalone ? 'app' : 'web') + ' · ' + UA.slice(0, 180); }
+  function openFeedback() {
+    var el = document.getElementById('sheetBody');
+    el.innerHTML = '<h2 id="sheetTitle">의견·문의 보내기</h2><p class="lead">불편한 점, 바라는 기능, 개인정보 요청 모두 좋아요. 운영자에게만 보여요. 답장이 필요하면 연락받을 방법을 함께 적어 주세요.</p>' +
+      '<div class="field"><label for="fbText">내용 (1000자까지)</label><textarea id="fbText" maxlength="1000" rows="6"></textarea></div>' +
+      '<div class="err" id="fbErr" role="alert"></div><button type="button" class="primary" id="fbGo" style="width:100%">보내기</button><button type="button" class="close-btn" id="closeSheet">닫기</button>';
+    document.getElementById('sheet').hidden = false;
+    el.querySelector('#closeSheet').addEventListener('click', closeSheet);
+    el.querySelector('#fbText').focus();
+    el.querySelector('#fbGo').addEventListener('click', function (e) {
+      var btn = e.currentTarget, err = el.querySelector('#fbErr'), t = el.querySelector('#fbText').value.trim();
+      if (!t) { err.textContent = REPORT_ERR.empty; return; }
+      btn.disabled = true; err.textContent = '';
+      Server.rpc('send_report', { p_anon: anonId, p_kind: 'feedback', p_body: t, p_room: null, p_target: null, p_reason: null, p_meta: reportMeta() }).then(function (res) {
+        if (!res || res.error) { btn.disabled = false; err.textContent = REPORT_ERR[res && res.error] || roomErr(); return; }
+        closeSheet(); toast('보냈어요. 고마워요!');
+      }).catch(function () { btn.disabled = false; err.textContent = roomErr(); });
+    });
+  }
+  var REASONS = ['욕설·비방', '부적절한 이름', '다른 사람 사칭', '기타'];
+  function openReport(room, p) {
+    var el = document.getElementById('sheetBody'), reason = '';
+    el.innerHTML = '<h2 id="sheetTitle">' + esc(p.name) + ' 님 신고</h2><p class="lead">운영자에게만 전달되고, 상대에게는 알리지 않아요. 확인 후 이름 변경·이용 제한을 할 수 있어요.' +
+      (room && state.roomData[room.code] && state.roomData[room.code].view && state.roomData[room.code].view.owner_me ? '' : ' 바로 피하고 싶으면 방에서 나가거나 방장에게 알려 주세요.') + '</p>' +
+      '<div class="pills" role="group" aria-label="신고 이유">' + REASONS.map(function (r) { return '<button type="button" class="pill" data-reason="' + esc(r) + '" aria-pressed="false">' + esc(r) + '</button>'; }).join('') + '</div>' +
+      '<div class="field" style="margin-top:12px"><label for="rpText">자세한 내용 (선택, 500자까지)</label><textarea id="rpText" maxlength="500" rows="3"></textarea></div>' +
+      '<div class="err" id="rpErr" role="alert"></div><button type="button" class="primary" id="rpGo" style="width:100%">신고 보내기</button><button type="button" class="close-btn" id="closeSheet">닫기</button>';
+    document.getElementById('sheet').hidden = false;
+    el.querySelector('#closeSheet').addEventListener('click', closeSheet);
+    el.querySelectorAll('[data-reason]').forEach(function (b) {
+      b.addEventListener('click', function () { el.querySelectorAll('[data-reason]').forEach(function (x) { x.setAttribute('aria-pressed', 'false'); }); b.setAttribute('aria-pressed', 'true'); reason = b.dataset.reason; el.querySelector('#rpErr').textContent = ''; });
+    });
+    el.querySelector('#rpGo').addEventListener('click', function (e) {
+      var btn = e.currentTarget, err = el.querySelector('#rpErr');
+      if (!reason) { err.textContent = '신고 이유를 골라 주세요.'; return; }
+      btn.disabled = true; err.textContent = '';
+      Server.rpc('send_report', { p_anon: anonId, p_kind: 'report', p_body: el.querySelector('#rpText').value.trim(), p_room: room.code, p_target: p.key, p_reason: reason, p_meta: reportMeta() }).then(function (res) {
+        if (!res || res.error) { btn.disabled = false; err.textContent = REPORT_ERR[res && res.error] || roomErr(); return; }
+        closeSheet(); toast('신고를 보냈어요. 확인해 볼게요.');
+      }).catch(function () { btn.disabled = false; err.textContent = roomErr(); });
+    });
+    el.querySelector('h2').setAttribute('tabindex', '-1'); el.querySelector('h2').focus();
+  }
+  // 화면 오류는 페이지당 3건까지만 조용히 운영자에게 (기능이 켜져 있을 때만)
+  var errQueue = [], errSeen = {}, errSent = 0;
+  function flushErrors() {
+    if (!Server.on || !has('report')) return;
+    while (errQueue.length && errSent < 3) {
+      var x = errQueue.shift(); errSent++;
+      Server.rpc('send_report', { p_anon: anonId, p_kind: 'error', p_body: x.msg, p_room: null, p_target: null, p_reason: null, p_meta: x.stack + '\n' + reportMeta() }).catch(function () {});
+    }
+  }
+  function reportError(msg, stack) {
+    msg = String(msg || '').slice(0, 300);
+    if (!msg || /^Script error\.?$/i.test(msg) || errSeen[msg] || errQueue.length + errSent >= 3) return;
+    errSeen[msg] = true; errQueue.push({ msg: msg, stack: String(stack || '').slice(0, 1200) }); flushErrors();
+  }
+  window.addEventListener('error', function (e) { reportError(e.message, e.error && e.error.stack); });
+  window.addEventListener('unhandledrejection', function (e) { var r = e.reason || {}; reportError('promise: ' + (r.message || r), r.stack); });
+
   // ---------- 새 버전 적용 ----------
   // 새 서비스 워커가 자리를 잡으면 불림. 보고 있는 중이면 버튼을 띄우고, 앱을 내렸다가 돌아오면 알아서 새로 고침.
   // 기록·설정은 기기 저장소에 있어서 새로 고쳐도 그대로.
@@ -1225,10 +1520,15 @@
     locked: '비밀번호를 여러 번 틀려서 오늘은 로그인할 수 없어요. 내일 다시 시도해 주세요.',
     too_big: '보관할 기록이 너무 많아요.',
     rate_limited: '시도가 너무 많아요. 내일 다시 시도해 주세요.',
-    not_linked: '연결된 계정이 없어요.'
+    not_linked: '연결된 계정이 없어요.',
+    wrong_code: '아이디나 복구 코드가 맞지 않아요.'
   };
   function accErr(code) { return ACC_ERR[code] || '연결이 불안정해요. 잠시 후 다시 시도해 주세요.'; }
-  function myAccountData() { return L.accountData(state.settings, state.records, state.rooms, state.nick); }
+  function myAccountData() {
+    var d = L.accountData(state.settings, state.records, state.rooms, state.nick), c = Local.get(K.consent);
+    if (c && typeof c.at === 'string') d.consent = { v: Number(c.v) || 1, at: c.at.slice(0, 30) };
+    return d;
+  }
   var saveTimer = null;
   function saveAccountSoon() {
     if (!Server.on || !state.account) return;
@@ -1242,7 +1542,8 @@
   function accountSectionHtml() {
     if (state.account) {
       return '<div class="section-label">계정</div><div class="note account"><b>@' + esc(state.account.username) + '</b>로 로그인돼 있어요. 기록·목표·방 목록이 계정에 자동으로 보관돼요.' +
-        '<div class="row"><button type="button" class="secondary" id="accLogout">로그아웃</button><button type="button" class="secondary" id="accClose">계정 삭제</button></div></div>';
+        '<div class="row"><button type="button" class="secondary" id="accLogout">로그아웃</button><button type="button" class="secondary" id="accClose">계정 삭제</button></div>' +
+        (has('recovery') ? '<div class="center"><button type="button" class="link-btn quiet" id="accRecovery">복구 코드 새로 만들기</button></div>' : '') + '</div>';
     }
     return '<div class="section-label">계정 (선택)</div><div class="note account">가입하면 폰을 바꾸거나 다른 기기에서도 기록·목표·방이 그대로 이어져요. 가입하지 않아도 지금처럼 쓸 수 있어요.' +
       '<div class="row"><button type="button" class="primary" id="accSignup">가입하기</button><button type="button" class="secondary" id="accLogin">로그인</button></div></div>';
@@ -1261,6 +1562,7 @@
       }).catch(function () { btn.disabled = false; toast('연결이 불안정해서 로그아웃하지 않았어요. 기록이 보관된 뒤에 다시 시도해 주세요.'); });
     });
     if ((b = el.querySelector('#accClose'))) b.addEventListener('click', openCloseAccount);
+    if ((b = el.querySelector('#accRecovery'))) b.addEventListener('click', openNewRecovery);
   }
   function credFields(newPw) {
     return '<div class="field"><label for="accUser">아이디 (영문 소문자·숫자·_ . 4~20자)</label><input id="accUser" maxlength="20" autocomplete="username" autocapitalize="none" spellcheck="false"></div>' +
@@ -1275,7 +1577,8 @@
   }
   function openSignup() {
     var el = sheetOpen('<h2 id="sheetTitle">가입하기</h2><p class="lead">이 기기의 기록과 방이 계정에 그대로 옮겨져요. <b>비밀번호를 잊으면 찾을 수 없어요.</b> 다른 곳에서 쓰지 않는 비밀번호를 써 주세요.</p>' +
-      credFields(true) + '<button type="button" class="primary" id="accGo" style="width:100%;margin-top:6px">가입하기</button><button type="button" class="close-btn" id="accBack">닫기</button>');
+      credFields(true) + '<label class="check"><input type="checkbox" id="accAgree"> <span>만 14세 이상이고, ' + legalLinks() + '에 동의해요</span></label>' +
+      '<button type="button" class="primary" id="accGo" style="width:100%;margin-top:6px">가입하기</button><button type="button" class="close-btn" id="accBack">닫기</button>');
     el.querySelector('#accBack').addEventListener('click', closeSheet);
     el.querySelector('#accUser').focus();
     el.querySelector('#accGo').addEventListener('click', function (e) {
@@ -1284,18 +1587,27 @@
       if (!L.validUsername(u)) { err.textContent = ACC_ERR.bad_username; return; }
       if (!L.validPassword(pw)) { err.textContent = ACC_ERR.bad_password; return; }
       if (pw !== pw2) { err.textContent = '비밀번호 확인이 달라요.'; return; }
+      if (!el.querySelector('#accAgree').checked) { err.textContent = '만 14세 이상만 가입할 수 있어요. 약관과 처리방침에 동의해 주세요.'; return; }
+      Local.set(K.consent, { v: 1, at: new Date().toISOString() });
       btn.disabled = true; err.textContent = '';
       Server.rpc('sign_up', { p_anon: anonId, p_username: u, p_password: pw, p_data: myAccountData() }).then(function (res) {
         if (!res || res.error) { btn.disabled = false; err.textContent = accErr(res && res.error); return; }
         state.account = { username: res.username }; Local.set(K.account, state.account);
-        closeSheet(); toast('가입했어요. 이제 기록이 계정에 보관돼요.');
+        if (!has('recovery')) { closeSheet(); toast('가입했어요. 이제 기록이 계정에 보관돼요.'); return; }
+        return Server.rpc('set_recovery_code', { p_anon: anonId, p_password: pw }).then(function (r2) {
+          if (!r2 || !r2.recovery_code) throw new Error('no_code');
+          showRecoveryCode(r2.recovery_code, '가입했어요 · 복구 코드', function () { closeSheet(); toast('가입했어요. 이제 기록이 계정에 보관돼요.'); });
+        }).catch(function () { closeSheet(); toast('가입했어요. 복구 코드는 설정 → 계정에서 만들 수 있어요.'); });
       }).catch(function (x) { btn.disabled = false; err.textContent = accErr(x && x.message); });
     });
   }
   function openLogin() {
     var el = sheetOpen('<h2 id="sheetTitle">로그인</h2><p class="lead">계정에 보관된 기록·목표·방을 이 기기로 가져와요. 이 기기에 있던 기록도 계정에 합쳐져요.</p>' +
-      credFields(false) + '<button type="button" class="primary" id="accGo" style="width:100%;margin-top:6px">로그인</button><button type="button" class="close-btn" id="accBack">닫기</button>');
+      credFields(false) + '<button type="button" class="primary" id="accGo" style="width:100%;margin-top:6px">로그인</button>' +
+      (has('recovery') ? '<div class="center"><button type="button" class="link-btn quiet" id="accForgot">비밀번호를 잊었어요</button></div>' : '') +
+      '<button type="button" class="close-btn" id="accBack">닫기</button>');
     el.querySelector('#accBack').addEventListener('click', closeSheet);
+    if (el.querySelector('#accForgot')) el.querySelector('#accForgot').addEventListener('click', openReset);
     el.querySelector('#accUser').focus();
     el.querySelector('#accGo').addEventListener('click', function (e) {
       var btn = e.currentTarget, err = el.querySelector('#accErr');
@@ -1304,17 +1616,75 @@
       btn.disabled = true; err.textContent = '';
       Server.rpc('sign_in', { p_username: u, p_password: pw }).then(function (res) {
         if (!res || res.error || !/^[0-9a-f-]{36}$/.test(String(res.anon_id))) { btn.disabled = false; err.textContent = accErr(res && res.error); return; }
-        var merged = L.mergeAccount(myAccountData(), res.data || {});
-        // 방은 기기 번호에 묶여 있어서 계정 쪽 방만 가져옴 (이 기기에서 따로 들어간 방은 계정 번호로는 들어가 있지 않음)
-        merged.rooms = L.cleanRooms((res.data || {}).rooms);
-        Local.set(K.anon, res.anon_id);
-        Local.set(K.records, merged.records);
-        if (merged.settings) Local.set(K.settings, merged.settings);
-        Local.set(K.rooms, merged.rooms);
-        if (merged.nick) Local.set(K.nick, merged.nick);
-        Local.set(K.account, { username: res.username });
-        Local.del(K.pending); Local.del(K.pendingRoom); Local.del(K.view);
-        return Server.rpc('save_account', { p_anon: res.anon_id, p_data: merged }).catch(function () {}).then(function () { location.reload(); });
+        return adoptAccount(res).then(function () { location.reload(); });
+      }).catch(function (x) { btn.disabled = false; err.textContent = accErr(x && x.message); });
+    });
+  }
+  // 로그인·복구 성공: 계정의 기기 번호와 기록을 이 기기로
+  function adoptAccount(res) {
+    var merged = L.mergeAccount(myAccountData(), res.data || {});
+    // 방은 기기 번호에 묶여 있어서 계정 쪽 방만 가져옴 (이 기기에서 따로 들어간 방은 계정 번호로는 들어가 있지 않음)
+    merged.rooms = L.cleanRooms((res.data || {}).rooms);
+    if (res.data && res.data.consent) merged.consent = res.data.consent;
+    Local.set(K.anon, res.anon_id);
+    Local.set(K.records, merged.records);
+    if (merged.settings) Local.set(K.settings, merged.settings);
+    Local.set(K.rooms, merged.rooms);
+    if (merged.nick) Local.set(K.nick, merged.nick);
+    if (merged.consent) Local.set(K.consent, merged.consent);
+    Local.set(K.account, { username: res.username });
+    Local.del(K.pending); Local.del(K.pendingRoom); Local.del(K.view);
+    return Server.rpc('save_account', { p_anon: res.anon_id, p_data: merged }).catch(function () {});
+  }
+  // 복구 코드 보여주기 (한 번만)
+  function showRecoveryCode(code, title, after) {
+    var el = sheetOpen('<h2 id="sheetTitle">' + esc(title || '복구 코드') + '</h2><p class="lead">비밀번호를 잊었을 때 이 코드로 새 비밀번호를 정할 수 있어요. <b>지금 한 번만 보여줘요.</b> 캡처하거나 메모해 두세요.</p>' +
+      '<div class="note" style="text-align:center"><span class="code" id="recCode" style="font-size:26px;letter-spacing:3px">' + esc(code) + '</span></div>' +
+      '<div class="btn-col"><button type="button" class="secondary" id="recCopy">코드 복사</button><button type="button" class="primary" id="recDone">저장했어요</button></div>');
+    el.querySelector('#recCopy').addEventListener('click', function () {
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(function () { toast('복구 코드를 복사했어요. 메모 앱에 붙여 넣어 두세요.'); }, function () {});
+    });
+    el.querySelector('#recDone').addEventListener('click', function () { if (after) after(); else closeSheet(); });
+    el.querySelector('h2').setAttribute('tabindex', '-1'); el.querySelector('h2').focus();
+  }
+  function openNewRecovery() {
+    var el = sheetOpen('<h2 id="sheetTitle">복구 코드 새로 만들기</h2><p class="lead">새 코드를 만들면 예전 코드는 더 이상 쓸 수 없어요.</p>' +
+      '<div class="field"><label for="accPw">비밀번호 확인</label><input id="accPw" type="password" maxlength="64" autocomplete="current-password"></div>' +
+      '<button type="button" class="primary" id="accGo" style="width:100%">새 코드 만들기</button><button type="button" class="close-btn" id="accBack">닫기</button>');
+    el.querySelector('#accBack').addEventListener('click', closeSheet);
+    el.querySelector('#accPw').focus();
+    el.querySelector('#accGo').addEventListener('click', function (e) {
+      var btn = e.currentTarget, err = el.querySelector('#accErr');
+      btn.disabled = true; err.textContent = '';
+      Server.rpc('set_recovery_code', { p_anon: anonId, p_password: el.querySelector('#accPw').value }).then(function (res) {
+        if (!res || res.error || !res.recovery_code) { btn.disabled = false; err.textContent = accErr(res && res.error); return; }
+        showRecoveryCode(res.recovery_code, '새 복구 코드');
+      }).catch(function (x) { btn.disabled = false; err.textContent = accErr(x && x.message); });
+    });
+  }
+  function openReset() {
+    var el = sheetOpen('<h2 id="sheetTitle">비밀번호 다시 정하기</h2><p class="lead">가입할 때 받은 12자리 복구 코드가 있으면 새 비밀번호를 정할 수 있어요. 복구 코드가 없으면 되찾을 수 없어요.</p>' +
+      '<div class="field"><label for="accUser">아이디</label><input id="accUser" maxlength="20" autocomplete="username" autocapitalize="none" spellcheck="false"></div>' +
+      '<div class="field"><label for="recIn">복구 코드 (12자리)</label><input id="recIn" maxlength="20" autocomplete="one-time-code" autocapitalize="characters" spellcheck="false" placeholder="ABCD-EFGH-JKMN"></div>' +
+      '<div class="field"><label for="accPw">새 비밀번호 (8자 이상)</label><input id="accPw" type="password" maxlength="64" autocomplete="new-password"></div>' +
+      '<div class="field"><label for="accPw2">새 비밀번호 확인</label><input id="accPw2" type="password" maxlength="64" autocomplete="new-password"></div>' +
+      '<button type="button" class="primary" id="accGo" style="width:100%;margin-top:6px">새 비밀번호로 로그인</button><button type="button" class="close-btn" id="accBack">닫기</button>');
+    el.querySelector('#accBack').addEventListener('click', closeSheet);
+    el.querySelector('#accUser').focus();
+    el.querySelector('#accGo').addEventListener('click', function (e) {
+      var btn = e.currentTarget, err = el.querySelector('#accErr');
+      var u = L.normUsername(el.querySelector('#accUser').value), code = el.querySelector('#recIn').value.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      var pw = el.querySelector('#accPw').value, pw2 = el.querySelector('#accPw2').value;
+      if (!L.validUsername(u)) { err.textContent = ACC_ERR.bad_username; return; }
+      if (code.length !== 12) { err.textContent = '복구 코드는 12자리예요.'; return; }
+      if (!L.validPassword(pw)) { err.textContent = ACC_ERR.bad_password; return; }
+      if (pw !== pw2) { err.textContent = '비밀번호 확인이 달라요.'; return; }
+      btn.disabled = true; err.textContent = '';
+      Server.rpc('reset_password', { p_username: u, p_code: code, p_new_password: pw }).then(function (res) {
+        if (!res || res.error || !/^[0-9a-f-]{36}$/.test(String(res.anon_id))) { btn.disabled = false; err.textContent = accErr(res && res.error); return; }
+        return adoptAccount(res).then(function () {
+          showRecoveryCode(String(res.recovery_code || ''), '새 비밀번호로 바꿨어요', function () { location.reload(); });
+        });
       }).catch(function (x) { btn.disabled = false; err.textContent = accErr(x && x.message); });
     });
   }
@@ -1368,7 +1738,16 @@
   }, 4000);
   if (Server.on) {
     refreshCrowd(); syncPending(); syncRoomStarts(); syncProfile();
-    setInterval(refreshCrowd, 30000);
+    Server.rpc('app_info', {}).then(function (i) {
+      if (i && Array.isArray(i.features)) state.features = i.features.filter(function (f) { return typeof f === 'string'; });
+      flushErrors();
+    }).catch(function () {});
+    setInterval(function () { if (document.visibilityState !== 'hidden') refreshCrowd(); }, 30000);
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState !== 'visible') return;
+      refreshCrowd(); syncPending(); syncRoomStarts();
+      if (state.tab === 'today' && currentRoom()) refreshRoom();
+    });
     setInterval(function () { if (state.tab === 'today' && currentRoom() && document.visibilityState !== 'hidden') refreshRoom(); }, 20000);
   }
 

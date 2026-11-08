@@ -299,3 +299,39 @@ test('방: 방장 표시와 멤버 키(12자리 16진수만)', () => {
   assert.equal(L.profileFromMember(v.members[0], '2026-11-08').key, 'a1b2c3d4e5f6');
   assert.equal(L.profileFromMember(v.members[1], '2026-11-08').key, null);
 });
+
+test('아침 알림: 단계 목표별 일정, 75바이트 줄 접기, 구글 링크', () => {
+  const s = L.makeSettings({ baselineMin: 480, targetMin: 420, sleepNeedH: 8, firstAction: '물 한 잔 마시기' }, '2026-11-08').settings;
+  assert.deepEqual(L.reminderStages(s, '2026-11-09').map(g => [g.start, g.min, g.days, !!g.forever]),
+    [['2026-11-09', 465, 2, false], ['2026-11-11', 450, 3, false], ['2026-11-14', 435, 3, false], ['2026-11-17', 420, 1, true]]);
+  const flat = L.makeSettings({ baselineMin: 440, targetMin: 420, sleepNeedH: 8, firstAction: '물' }, '2026-11-08').settings;
+  assert.equal(L.reminderStages(flat, '2026-11-09').length, 1, '30분 이내면 바로 매일 반복 하나');
+  const ics = L.reminderIcs(s, '2026-11-09', 'https://x.io/', '2026-11-08T05:50:12.345Z');
+  assert.ok(ics.split('\r\n').every(l => Buffer.byteLength(l) <= 75), '모든 줄 75바이트 이하');
+  const un = ics.replace(/\r\n /g, '');
+  assert.match(un, /^BEGIN:VCALENDAR\r\n/); assert.match(un, /END:VCALENDAR\r\n$/);
+  assert.match(un, /DTSTAMP:20261108T055012Z/);
+  assert.match(un, /DESCRIPTION:일어났으면 같이 일어나요에서 '하루 시작하기'를 눌러요\./);
+  assert.equal((un.match(/BEGIN:VALARM/g) || []).length, 4);
+  assert.match(L.googleReminderUrl(flat, '2026-11-09', ''), /dates=20261109T070000\/20261109T071000&ctz=Asia%2FSeoul&recur=RRULE%3AFREQ%3DDAILY/);
+  assert.notEqual(L.reminderSig(s), L.reminderSig(flat));
+});
+
+test('내 기록: 연속 일수, 최근 n일, CSV (따옴표·쉼표 처리, BOM)', () => {
+  const s = L.makeSettings({ baselineMin: 480, targetMin: 420, sleepNeedH: 8, firstAction: '물' }, '2026-11-01').settings;
+  let recs = [];
+  for (const [d, t] of [['2026-11-05', '07:40'], ['2026-11-06', '07:20'], ['2026-11-07', '09:05'], ['2026-11-08', '07:30']]) {
+    recs = L.createStartRecord(recs, new Date(d + 'T' + t + ':00+09:00'), s).records;
+  }
+  assert.equal(L.localStreak(recs, '2026-11-08'), 4, '오늘까지');
+  assert.equal(L.localStreak(recs, '2026-11-09'), 4, '오늘 아직이면 어제까지');
+  assert.equal(L.localStreak(recs, '2026-11-10'), 0);
+  assert.equal(L.localStreak([], '2026-11-10'), 0);
+  assert.deepEqual(L.recentDays(recs, '2026-11-08', 5), [false, true, true, true, true]);
+  const csv = L.recordsCsv(recs);
+  assert.equal(csv.charCodeAt(0), 0xFEFF);
+  const rows = csv.slice(1).trim().split('\r\n');
+  assert.equal(rows.length, 5);
+  assert.equal(rows[3], '2026-11-07,토,09:05,07:15,110,늦음,');
+  assert.equal(L.recordsCsv([]).slice(1), '날짜,요일,하루 시작,그날 목표,목표와 차이(분),결과,첫 행동\r\n');
+});

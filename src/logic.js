@@ -299,6 +299,79 @@
     var t = text.replace(/[\u0000-\u001F\u007F<>]/g, '').replace(/\s+/g, ' ').trim();
     return Array.from(t).slice(0, max).join('');
   }
+  // ---------- 내 기록: 연속 일수, 최근 n일, CSV 내보내기 ----------
+  function localStreak(records, todayKey) {
+    var has = {}; cleanRecords(records).forEach(function (r) { has[r.date] = true; });
+    var a = has[todayKey] ? todayKey : addDays(todayKey, -1), n = 0;
+    while (has[a] && n < 1000) { n++; a = addDays(a, -1); }
+    return n;
+  }
+  function recentDays(records, todayKey, n) {
+    var has = {}; cleanRecords(records).forEach(function (r) { has[r.date] = true; });
+    var out = []; for (var i = n - 1; i >= 0; i--) out.push(!!has[addDays(todayKey, -i)]);
+    return out;
+  }
+  function csvCell(v) { v = v === null || v === undefined ? '' : String(v); return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
+  function recordsCsv(records) {
+    var DOW = ['일', '월', '화', '수', '목', '금', '토'], NAME = { hit: '목표 달성', close: '조금 늦음', late: '늦음', none: '' };
+    var rows = [['날짜', '요일', '하루 시작', '그날 목표', '목표와 차이(분)', '결과', '첫 행동']];
+    cleanRecords(records).slice().sort(function (a, b) { return a.date < b.date ? -1 : 1; }).forEach(function (r) {
+      var ev = evaluate(r);
+      rows.push([r.date, DOW[new Date(keyToUTC(r.date)).getUTCDay()], formatMinute(r.minuteOfDay),
+        isInt(r.dayTarget) ? formatMinute(r.dayTarget) : '', ev.diff === null ? '' : ev.diff, NAME[ev.status] || '', r.actionDoneAt ? '했음' : '']);
+    });
+    return '\uFEFF' + rows.map(function (r) { return r.map(csvCell).join(','); }).join('\r\n') + '\r\n';
+  }
+
+  // ---------- 아침 알림 (캘린더) ----------
+  // 내일부터 목표 시각마다 '하루 시작 기록' 알림. 단계 목표(3일마다 15분)는 단계별 일정으로 나누고, 최종 목표는 매일 반복.
+  function reminderStages(s, fromKey) {
+    var out = [], prev = null;
+    for (var i = 0; i < 400; i++) {
+      var key = addDays(fromKey, i), t = planTargetFor(s, key);
+      if (prev && prev.min === t) prev.days++;
+      else { prev = { start: key, min: t, days: 1 }; out.push(prev); }
+      if (t === s.targetMin) { prev.forever = true; break; }
+    }
+    return out;
+  }
+  // RFC 5545: 한 줄 75바이트 넘으면 접기 (한글 글자 중간에서 자르지 않음)
+  function icsFold(line) {
+    var out = '', n = 0;
+    for (var i = 0; i < line.length; i++) {
+      var ch = line.charAt(i), code = line.charCodeAt(i), b = code < 0x80 ? 1 : code < 0x800 ? 2 : (code >= 0xD800 && code <= 0xDBFF) ? 4 : 3;
+      if (code >= 0xD800 && code <= 0xDBFF) { ch += line.charAt(++i); }
+      if (n + b > (out ? 74 : 75)) { out += '\r\n '; n = 0; }
+      out += ch; n += b;
+    }
+    return out;
+  }
+  function icsStamp(key, min) { return key.replace(/-/g, '') + 'T' + pad2(Math.floor(min / 60)) + pad2(min % 60) + '00'; }
+  function reminderIcs(s, fromKey, site, nowIso) {
+    var stamp = String(nowIso || '').replace(/[-:]/g, '').replace(/\.\d+/, '').slice(0, 15) + 'Z';
+    var L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//gachi-wake//ko', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:같이 일어나요'];
+    reminderStages(s, fromKey).forEach(function (g, i) {
+      L.push('BEGIN:VEVENT', 'UID:gachi-wake-morning-' + i + '@gachi-wake', 'DTSTAMP:' + stamp,
+        'DTSTART:' + icsStamp(g.start, g.min), 'DURATION:PT10M',
+        'RRULE:FREQ=DAILY' + (g.forever ? '' : ';COUNT=' + g.days),
+        'SUMMARY:☀ 하루 시작 기록하기 · ' + formatMinute(g.min),
+        'DESCRIPTION:일어났으면 같이 일어나요에서 \'하루 시작하기\'를 눌러요.',
+        site ? 'URL:' + site : 'X-NO-URL:1', 'TRANSP:TRANSPARENT',
+        'BEGIN:VALARM', 'ACTION:DISPLAY', 'TRIGGER:PT0M', 'DESCRIPTION:☀ 하루 시작 기록하기', 'END:VALARM', 'END:VEVENT');
+    });
+    L.push('END:VCALENDAR');
+    return L.filter(function (x) { return x !== 'X-NO-URL:1'; }).map(icsFold).join('\r\n') + '\r\n';
+  }
+  // 구글 캘린더는 일정 하나만 받으므로 내일 목표로 매일 반복
+  function googleReminderUrl(s, fromKey, site) {
+    var t = planTargetFor(s, fromKey), a = icsStamp(fromKey, t), b = icsStamp(fromKey, Math.min(t + 10, 1439));
+    return 'https://calendar.google.com/calendar/render?action=TEMPLATE' +
+      '&text=' + encodeURIComponent('☀ 하루 시작 기록하기') +
+      '&dates=' + a + '/' + b + '&ctz=Asia%2FSeoul&recur=' + encodeURIComponent('RRULE:FREQ=DAILY') +
+      '&details=' + encodeURIComponent('일어났으면 같이 일어나요에서 \'하루 시작하기\'를 눌러요.' + (site ? '\n' + site : ''));
+  }
+  function reminderSig(s) { return s ? [s.baselineMin, s.targetMin, s.planStart].join('|') : ''; }
+
   // 한글 자판인 채로 코드를 치면 '아ㅠ2' 처럼 들어온다 → 두벌식 자판 위치로 되돌린다 (아=d+k, ㅠ=b)
   var KO_I = 'r R s e E f a q Q t T d w W c z x v g'.split(' ');
   var KO_V = 'k o i O j p u P h hk ho hl y n nj np nl b m ml l'.split(' ');
@@ -447,6 +520,8 @@
     profileFromMember: profileFromMember, recentStarts: recentStarts,
     normUsername: normUsername, validUsername: validUsername, validPassword: validPassword, cleanRooms: cleanRooms,
     accountData: accountData, mergeAccount: mergeAccount,
+    localStreak: localStreak, recentDays: recentDays, recordsCsv: recordsCsv,
+    reminderStages: reminderStages, reminderIcs: reminderIcs, googleReminderUrl: googleReminderUrl, reminderSig: reminderSig,
     serverPayload: serverPayload, parseServerCounts: parseServerCounts, hashString: hashString
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

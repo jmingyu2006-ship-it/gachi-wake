@@ -32,7 +32,8 @@ const crypto = require('crypto');
 const mkey = (anon, code) => crypto.createHash('md5').update(anon + code).digest('hex').slice(0, 12);
 const addDay = (key, n) => new Date(Date.parse(key + 'T00:00:00Z') + n * 864e5).toISOString().slice(0, 10);
 function mockServer() {
-  const st = { wakes: new Map(), rooms: new Map(), members: [], starts: new Map(), targets: new Map(), owners: new Map(), bans: new Set(), accounts: new Map(), n: 0, calls: [] };
+  const st = { wakes: new Map(), rooms: new Map(), members: [], starts: new Map(), targets: new Map(), owners: new Map(), bans: new Set(), accounts: new Map(), reports: [], rc: 0, noFeatures: false, n: 0, calls: [] };
+  const newCode = () => { const c = ('RCVY' + String(++st.rc).padStart(8, '7')); return c.slice(0, 4) + '-' + c.slice(4, 8) + '-' + c.slice(8); };
   const banned = (code, anon) => st.bans.has(code + anon);
   const active = (code) => st.members.filter(m => m.code === code && !banned(code, m.anon)).sort((a, b) => a.t - b.t);
   const isMember = (code, anon) => active(code).some(m => m.anon === anon);
@@ -87,6 +88,39 @@ function mockServer() {
       if (!t) return json({ error: 'member_not_found' });
       if (t.anon === body.p_anon) return json({ error: 'cannot_kick_self' });
       st.bans.add(c + t.anon); return json({ ok: true });
+    }
+    if (fn === 'app_info') return st.noFeatures ? json({ message: 'unknown' }, 404) : json({ v: 6, features: ['report', 'recovery', 'erase'] });
+    if (fn === 'send_report') {
+      if (!['feedback', 'report', 'error'].includes(body.p_kind)) return json({ error: 'bad_request' });
+      if (body.p_kind === 'feedback' && !String(body.p_body || '').trim()) return json({ error: 'empty' });
+      let tname = null;
+      if (body.p_kind === 'report') {
+        if (!isMember(body.p_room, body.p_anon)) return json({ error: 'not_member' });
+        const t = active(body.p_room).find(m => mkey(m.anon, body.p_room) === body.p_target);
+        if (!t) return json({ error: 'member_not_found' });
+        tname = t.nick;
+      }
+      st.reports.push({ ...body, target_name: tname }); return json({ ok: true });
+    }
+    if (fn === 'set_recovery_code') {
+      for (const a of st.accounts.values()) if (a.anon === body.p_anon) {
+        if (a.pw !== body.p_password) return json({ error: 'wrong_credentials' });
+        const c = newCode(); a.rec = c.replace(/-/g, ''); return json({ ok: true, recovery_code: c });
+      }
+      return json({ error: 'not_linked' });
+    }
+    if (fn === 'reset_password') {
+      const u = String(body.p_username).trim().toLowerCase(), a = st.accounts.get(u), code = String(body.p_code).replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      if (!a || !a.rec || a.rec !== code) return json({ error: 'wrong_code' });
+      a.pw = body.p_new_password; const c = newCode(); a.rec = c.replace(/-/g, '');
+      return json({ ok: true, username: u, anon_id: a.anon, data: a.data, recovery_code: c });
+    }
+    if (fn === 'delete_my_data') {
+      const before = st.members.length;
+      st.members = st.members.filter(m => m.anon !== body.p_anon);
+      for (const k of [...st.starts.keys()]) if (k.startsWith(body.p_anon)) st.starts.delete(k);
+      st.targets.delete(body.p_anon);
+      return json({ ok: true, rooms_left: before - st.members.length });
     }
     if (fn === 'set_nickname') {
       const nk = String(body.p_nickname).trim();
@@ -422,12 +456,18 @@ test('계정: 한 기기에서 가입 → 다른 기기에서 로그인하면 �
   await a.getByText('비밀번호 확인이 달라요.').waitFor();
   await a.getByLabel('비밀번호 확인').fill('pass1234');
   await a.locator('#accGo').click();
+  await a.getByText('만 14세 이상만 가입할 수 있어요. 약관과 처리방침에 동의해 주세요.').waitFor();
+  await a.getByLabel(/만 14세 이상이고/).check();
+  await a.locator('#accGo').click();
+  await a.getByText('가입했어요 · 복구 코드').waitFor();
+  await a.getByRole('button', { name: '저장했어요' }).click();
   await a.getByText('가입했어요. 이제 기록이 계정에 보관돼요.').waitFor();
   const acc = srv.st.accounts.get('minkyu_01');
   assert.ok(acc, '계정 생성');
   assert.equal(acc.data.records.length, 1);
   assert.equal(acc.data.rooms[0].name, '새벽반');
   assert.equal(acc.data.settings.targetMin, 420);
+  assert.equal(acc.data.consent.v, 1, '동의 기록이 계정에 남음');
 
   // 다른 기기: 처음 화면에서 로그인
   const b = await person('2026-11-09T08:00:00', srv);
@@ -561,4 +601,158 @@ test('내 이름 바꾸기: 모든 방에 / 이 방에서만, 친구 화면에�
   assert.equal(await me.getByLabel('방에서 보일 내 이름 (10자까지)').inputValue(), '민규');
   assert.deepEqual(me.errors, []); assert.deepEqual(fr.errors, []);
   await me.context().close(); await fr.context().close();
+});
+
+test('10대: 방은 만 14세 이상 확인 후에만 만들 수 있고, 한 번 확인하면 다시 묻지 않는다', async () => {
+  const srv = mockServer();
+  const p = await person('2026-11-09T07:00:00', srv);
+  await p.getByRole('button', { name: '목표 정하기' }).click();
+  await p.getByRole('button', { name: '다음' }).click();
+  await p.getByRole('button', { name: '다음' }).click();
+  await p.getByRole('button', { name: '10대' }).click();
+  await p.getByRole('button', { name: '시작하기' }).click();
+  await p.getByRole('button', { name: '+ 방 만들기' }).click();
+  await p.getByLabel('방에서 보일 내 이름 (10자까지)').fill('지우');
+  await p.getByRole('button', { name: '방 만들기', exact: true }).click();
+  await p.getByText('방은 만 14세 이상만 만들거나 들어갈 수 있어요.').waitFor();
+  assert.equal(srv.st.rooms.size, 0, '확인 전엔 서버에 안 감');
+  await p.getByLabel(/만 14세 이상이에요/).check();
+  await p.getByRole('button', { name: '방 만들기', exact: true }).click();
+  await p.getByText("'우리 방' 방을 만들었어요").waitFor();
+  await p.getByRole('button', { name: '닫기' }).click();
+  await p.getByRole('button', { name: '코드로 들어가기' }).click();
+  await p.getByLabel('초대 코드 (6자리)').fill('zzzzzz');
+  await p.getByRole('button', { name: '닫기' }).click();
+  await p.getByRole('button', { name: '+ 방 만들기' }).click();
+  assert.equal(await p.getByLabel(/만 14세 이상이에요/).count(), 0, '다시 묻지 않음');
+  assert.deepEqual(p.errors, []);
+  await p.context().close();
+});
+
+const featuresReady = (page) => page.waitForFunction(() => window.__wakeApp && window.__wakeApp.state.features.length > 0);
+
+test('도움: 친구 신고(운영자에게만), 의견 보내기, 서버의 내 기록 지우기', async () => {
+  const srv = mockServer();
+  const me = await person('2026-11-09T06:30:00', srv);
+  await onboard(me);
+  await me.getByRole('button', { name: '+ 방 만들기' }).click();
+  await me.getByLabel('방 이름 (20자까지)').fill('새벽반');
+  await me.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민규');
+  await me.getByRole('button', { name: '방 만들기', exact: true }).click();
+  await me.getByText("'새벽반' 방을 만들었어요").waitFor();
+  await me.getByRole('button', { name: '닫기' }).click();
+  const code = [...srv.st.rooms.keys()][0];
+  const fr = await person('2026-11-09T06:40:00', srv, BASE + '?room=' + code);
+  await onboard(fr);
+  await fr.getByLabel('방에서 보일 내 이름 (10자까지)').fill('민수');
+  await fr.getByRole('button', { name: '들어가기', exact: true }).click();
+  await fr.getByText('0명 / 2명이 하루를 시작했어요').waitFor();
+  await featuresReady(fr);
+  // 친구가 방장(민규)을 신고
+  await unit(fr, '민규').click();
+  await fr.getByRole('button', { name: '신고하기' }).click();
+  await fr.getByRole('button', { name: '신고 보내기' }).click();
+  await fr.getByText('신고 이유를 골라 주세요.').waitFor();
+  await fr.getByRole('button', { name: '부적절한 이름' }).click();
+  await fr.getByLabel('자세한 내용 (선택, 500자까지)').fill('테스트 신고');
+  await fr.screenshot({ path: path.join(SHOTS, 'care-report.png') });
+  await fr.getByRole('button', { name: '신고 보내기' }).click();
+  await fr.getByText('신고를 보냈어요. 확인해 볼게요.').waitFor();
+  const rp = srv.st.reports.find(r => r.p_kind === 'report');
+  assert.equal(rp.target_name, '민규'); assert.equal(rp.p_reason, '부적절한 이름'); assert.equal(rp.p_room, code); assert.match(rp.p_meta, /^v0\.6\.0 · web · /);
+  // 내 프로필에는 신고 버튼 없음
+  await unit(fr, '민수').click();
+  assert.equal(await fr.locator('#sheetBody').getByRole('button', { name: '신고하기' }).count(), 0);
+  await fr.getByRole('button', { name: '닫기' }).click();
+  // 의견 보내기
+  await featuresReady(me);
+  await me.getByRole('button', { name: '목표 설정 열기' }).click();
+  await me.getByRole('button', { name: '의견·문의 보내기' }).click();
+  await me.getByRole('button', { name: '보내기', exact: true }).click();
+  await me.getByText('내용을 적어 주세요.').waitFor();
+  await me.getByLabel('내용 (1000자까지)').fill('알림 기능이 있으면 좋겠어요');
+  await me.getByRole('button', { name: '보내기', exact: true }).click();
+  await me.getByText('보냈어요. 고마워요!').waitFor();
+  assert.equal(srv.st.reports.find(r => r.p_kind === 'feedback').p_body, '알림 기능이 있으면 좋겠어요');
+  // 친구: 서버의 내 기록 지우기 → 방에서 나감
+  await fr.getByRole('button', { name: '목표 설정 열기' }).click();
+  await fr.getByRole('button', { name: '서버에 있는 내 기록 지우기' }).click();
+  await fr.getByRole('button', { name: '한 번 더 누르면 서버의 내 기록을 지워요' }).click();
+  await fr.getByText('서버에 있는 내 기록을 지웠어요. 방에서도 모두 나갔어요.').waitFor();
+  assert.equal(await fr.getByRole('button', { name: '새벽반' }).count(), 0);
+  assert.equal(srv.st.members.filter(m => m.code === code).length, 1);
+  await me.clock.runFor(21000);
+  await me.getByText('0명 / 1명이 하루를 시작했어요').waitFor();
+  assert.deepEqual(me.errors, []); assert.deepEqual(fr.errors, []);
+  await me.context().close(); await fr.context().close();
+});
+
+test('복구 코드: 가입 때 한 번 보여주고, 다른 기기에서 비밀번호를 잊어도 코드로 새 비밀번호 → 기록이 이어진다', async () => {
+  const srv = mockServer();
+  const a = await person('2026-11-09T07:05:00', srv);
+  await onboard(a);
+  await a.getByRole('button', { name: '하루 시작하기' }).click();
+  await a.clock.runFor(1600);
+  await featuresReady(a);
+  await a.getByRole('button', { name: '목표 설정 열기' }).click();
+  await a.getByRole('button', { name: '가입하기' }).click();
+  await a.getByLabel(/^아이디/).fill('minkyu_01');
+  await a.getByLabel('비밀번호 (8자 이상)').fill('pass1234');
+  await a.getByLabel('비밀번호 확인').fill('pass1234');
+  await a.getByLabel(/만 14세 이상이고/).check();
+  await a.locator('#accGo').click();
+  await a.getByText('가입했어요 · 복구 코드').waitFor();
+  const code = await a.locator('#recCode').textContent();
+  assert.match(code, /^[A-Z0-9]{4}-[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+  await a.screenshot({ path: path.join(SHOTS, 'care-recovery.png') });
+  await a.getByRole('button', { name: '저장했어요' }).click();
+  await a.getByText('가입했어요. 이제 기록이 계정에 보관돼요.').waitFor();
+
+  const b = await person('2026-11-09T08:00:00', srv);
+  await featuresReady(b);
+  await b.getByRole('button', { name: '이미 계정이 있어요 · 로그인' }).click();
+  await b.getByRole('button', { name: '비밀번호를 잊었어요' }).click();
+  await b.getByLabel('아이디').fill('minkyu_01');
+  await b.getByLabel('복구 코드 (12자리)').fill('WRON-GCOD-EXXX');
+  await b.getByLabel('새 비밀번호 (8자 이상)').fill('newpass99');
+  await b.getByLabel('새 비밀번호 확인').fill('newpass99');
+  await b.locator('#accGo').click();
+  await b.getByText('아이디나 복구 코드가 맞지 않아요.').waitFor();
+  await b.getByLabel('복구 코드 (12자리)').fill(code.toLowerCase().replace(/-/g, ' '));
+  await b.locator('#accGo').click();
+  await b.getByText('새 비밀번호로 바꿨어요').waitFor();
+  const code2 = await b.locator('#recCode').textContent();
+  assert.notEqual(code2, code, '코드는 한 번 쓰면 바뀜');
+  await Promise.all([b.waitForEvent('load'), b.getByRole('button', { name: '저장했어요' }).click()]);
+  await b.getByRole('button', { name: '습관' }).click();
+  await b.getByText('1 / 66일').waitFor();
+  assert.equal(srv.st.accounts.get('minkyu_01').pw, 'newpass99');
+  assert.deepEqual(a.errors, []); assert.deepEqual(b.errors, []);
+  await a.context().close(); await b.context().close();
+});
+
+test('서버에 새 기능이 아직 없으면 버튼이 숨고, 화면 오류는 하루 3건까지만 운영자에게 간다', async () => {
+  const off = mockServer(); off.st.noFeatures = true;
+  const p = await person('2026-11-09T07:05:00', off);
+  await onboard(p);
+  await p.clock.runFor(1000);
+  await p.getByRole('button', { name: '목표 설정 열기' }).click();
+  await p.getByRole('button', { name: '저장', exact: true }).waitFor();
+  assert.equal(await p.getByRole('button', { name: '의견·문의 보내기' }).count(), 0);
+  assert.equal(await p.getByRole('button', { name: '서버에 있는 내 기록 지우기' }).count(), 0);
+  await p.context().close();
+
+  const on = mockServer();
+  const q = await person('2026-11-09T07:05:00', on);
+  await onboard(q);
+  await featuresReady(q);
+  await q.evaluate(() => {
+    for (const m of ['boom-0', 'boom-0', 'Script error.', 'boom-1', 'boom-2', 'boom-3', 'boom-4']) window.dispatchEvent(new ErrorEvent('error', { message: m, error: new Error(m) }));
+  });
+  for (let i = 0; i < 20 && on.st.reports.filter(r => r.p_kind === 'error').length < 3; i++) await new Promise(r => setTimeout(r, 100));
+  await new Promise(r => setTimeout(r, 300));
+  const errs = on.st.reports.filter(r => r.p_kind === 'error');
+  assert.deepEqual(errs.map(e => e.p_body), ['boom-0', 'boom-1', 'boom-2']);
+  assert.match(errs[0].p_meta, /v0\.6\.0/);
+  await q.context().close();
 });
