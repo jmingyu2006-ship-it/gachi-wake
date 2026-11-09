@@ -116,11 +116,13 @@ test('기록 이미지(1080×1920)와 엑셀용 CSV 내보내기', async () => {
   await page.context().close();
 });
 
-test('아이폰 Safari: 홈 화면 추가 안내 → "이미 했어요"면 다시 안 보임 / 카카오톡 안: 외부 브라우저로 열기', async () => {
+test('아이폰 Safari: 맨 위 앱 설치 안내 → ×면 7일 숨김, 지나면 다시 / 카카오톡 안: 외부 브라우저로 열기', async () => {
   const ios = await open('2026-11-09T07:40:00', { ua: IOS_SAFARI });
   await onboard(ios);
-  await ios.getByText('홈 화면에 추가하면 아침에 한 번에 열려요').waitFor();
-  await ios.screenshot({ path: path.join(SHOTS, 'care-install.png'), fullPage: true });
+  await ios.getByText('dayset 앱으로 쓰기').waitFor();
+  const ban = await ios.locator('.install-banner').boundingBox(), sel = await ios.locator('.selector-row').boundingBox();
+  assert.ok(ban.y < sel.y, '오늘 화면 맨 위');
+  await ios.screenshot({ path: path.join(SHOTS, 'care-install.png') });
   await ios.locator('[data-install]').click();
   await ios.getByRole('heading', { name: '홈 화면에 추가' }).waitFor();
   await ios.getByText('홈 화면에 추가를 눌러요', { exact: false }).waitFor();
@@ -131,11 +133,17 @@ test('아이폰 Safari: 홈 화면 추가 안내 → "이미 했어요"면 다�
   await ios.getByRole('heading', { name: '홈 화면에 추가' }).waitFor();
   await ios.screenshot({ path: path.join(SHOTS, 'v10-install.png') });
   await ios.getByRole('button', { name: '닫기' }).click();
-  await ios.getByRole('button', { name: '이미 했어요' }).click();
-  assert.equal(await ios.getByText('홈 화면에 추가하면 아침에 한 번에 열려요').count(), 0);
+  await ios.getByRole('button', { name: '설치 안내 7일 동안 숨기기' }).click();
+  assert.equal(await ios.getByText('dayset 앱으로 쓰기').count(), 0);
   await ios.reload();
   await ios.getByRole('button', { name: '하루 시작', exact: true }).waitFor();
-  assert.equal(await ios.getByText('홈 화면에 추가하면 아침에 한 번에 열려요').count(), 0, '다시 열어도 안 보임');
+  assert.equal(await ios.getByText('dayset 앱으로 쓰기').count(), 0, '다시 열어도 7일 동안 안 보임');
+  await ios.evaluate(() => localStorage.setItem('gachi-v2-install-hide', JSON.stringify({ until: '2026-11-09' })));
+  await ios.reload();
+  await ios.getByText('dayset 앱으로 쓰기').waitFor();   // 기간이 지나면 다시
+  await ios.locator('[data-install]').click();
+  await ios.getByRole('button', { name: '추가했어요' }).click();
+  assert.equal(await ios.getByText('dayset 앱으로 쓰기').count(), 0, '추가했다고 하면 계속 숨김');
   assert.deepEqual(ios.errors, []);
   await ios.context().close();
 
@@ -147,7 +155,7 @@ test('아이폰 Safari: 홈 화면 추가 안내 → "이미 했어요"면 다�
   await kk.evaluate(() => { window.__nav = []; });
   await onboard(kk);
   await kk.getByText('Safari나 Chrome에서 열어 주세요').waitFor();
-  assert.equal(await kk.getByText('홈 화면에 추가하면 아침에 한 번에 열려요').count(), 0, '앱 안 브라우저에선 설치 안내 대신 브라우저 안내');
+  assert.equal(await kk.getByText('dayset 앱으로 쓰기').count(), 0, '앱 안 브라우저에선 설치 안내 대신 브라우저 안내');
   assert.deepEqual(kk.errors, []);
   await kk.context().close();
 });

@@ -1,7 +1,7 @@
 {
-  "name": "dayset - 함께 하는 미라클모닝",
+  "name": "dayset",
   "short_name": "dayset",
-  "description": "하루를 시작하고 싶은 시각을 정하고, 같이 지켜요.",
+  "description": "함께 하는 미라클모닝. 내가 정한 시각에 하루를 시작하고, 친구들과 창문을 켜요.",
   "lang": "ko",
   "start_url": "./",
   "scope": "./",

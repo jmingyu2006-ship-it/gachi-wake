@@ -52,13 +52,13 @@ out('web/.nojekyll', '');
   const sharp = require(process.env.SHARP_PATH || '/opt/npm-tools/node_modules/sharp');
   const svg = fs.readFileSync(R('web/icon.svg'));
   fs.mkdirSync(R('dist/web/icons'), { recursive: true });
-  await sharp(svg).resize(192, 192).png().toFile(R('dist/web/icons/icon-192.png'));
-  await sharp(svg).resize(512, 512).png().toFile(R('dist/web/icons/icon-512.png'));
-  await sharp(svg).resize(180, 180).png().toFile(R('dist/web/icons/apple-touch-icon.png'));
-  // maskable: 안전 영역을 위해 여백을 더한 버전
-  const inner = await sharp(svg).resize(400, 400).png().toBuffer();
-  await sharp({ create: { width: 512, height: 512, channels: 4, background: '#0E1322' } })
-    .composite([{ input: inner, left: 56, top: 56 }]).png().toFile(R('dist/web/icons/icon-maskable-512.png'));
+  // 아이콘: 그림은 꽉 찬 정사각형. 일반 아이콘은 둥근 모서리로 자르고, 아이폰·maskable은 기기가 자르게 그대로
+  const round = (n) => Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" width="' + n + '" height="' + n + '"><rect width="' + n + '" height="' + n + '" rx="' + Math.round(n * 0.22) + '" fill="#fff"/></svg>');
+  for (const n of [192, 512]) {
+    await sharp(svg).resize(n, n).composite([{ input: round(n), blend: 'dest-in' }]).png().toFile(R('dist/web/icons/icon-' + n + '.png'));
+  }
+  await sharp(svg).resize(180, 180).flatten({ background: '#121937' }).png().toFile(R('dist/web/icons/apple-touch-icon.png'));
+  await sharp(svg).resize(512, 512).flatten({ background: '#121937' }).png().toFile(R('dist/web/icons/icon-maskable-512.png'));
   // 링크 미리보기 이미지 (카카오톡·메신저용 1200x630)
   await sharp(fs.readFileSync(R('web/og.svg'))).png().toFile(R('dist/web/og.png'));
   console.log('built dist/artifact and dist/web');

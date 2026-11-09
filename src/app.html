@@ -529,6 +529,12 @@
   .unit .bubble { left: 50%; top: 0; }
   .pulse-line { font-size: 13.5px; color: var(--muted); margin: -4px 2px 0; }
   .pulse-line b { color: var(--ink); }
+  .install-banner { display: flex; align-items: center; gap: 12px; padding: 10px 6px 10px 12px; border-radius: 16px; background: linear-gradient(90deg, rgba(255,201,99,.14), rgba(255,201,99,.05)); box-shadow: inset 0 0 0 1px rgba(255,201,99,.28); }
+  .install-banner img { width: 40px; height: 40px; border-radius: 10px; flex: none; }
+  .install-banner .tx { flex: 1; min-width: 0; font-size: 12.5px; color: var(--muted); line-height: 1.45; }
+  .install-banner .tx b { display: block; font-size: 14px; color: var(--ink); }
+  .install-banner .get { flex: none; min-height: 36px; padding: 0 14px; border: none; border-radius: 10px; background: var(--lit); color: var(--act-ink); font-size: 13.5px; font-weight: 700; }
+  .install-banner .x { flex: none; min-width: 36px; min-height: 44px; border: none; background: none; color: var(--dim); font-size: 18px; }
   @media (prefers-reduced-motion: reduce) { .bubble.pop { animation: none; } }
 </style>
 </head>
@@ -575,7 +581,7 @@
     crowd: null, crowdDay: null, serverOk: null, clearArmed: false, saving: Promise.resolve(), ob: null, edit: null,
     rooms: [], view: 'all', roomData: {}, roomSeen: {}, cheers: {}, nick: '', invite: null, leaveArmed: false, account: null, features: []
   };
-  var APP_VERSION = 'v0.12.0';
+  var APP_VERSION = 'v0.12.1';
   function has(f) { return state.features.indexOf(f) >= 0; }
 
   // ---------- 기기 저장 ----------
@@ -954,7 +960,7 @@
     var room = currentRoom();
     var phase = L.dayPhase(min), f = L.formatMinute;
     state.leaveArmed = false;
-    var html = selectorHtml(room), after = '';
+    var html = installBannerHtml() + selectorHtml(room), after = '';
     var alarm = alarmState(s), tomorrowKey = L.addDays(key, 1);
     var alarmRow = function (when, t) {
       return '<button type="button" class="rowi mini" data-morning>' + BELL + '<span class="tx">' + alarm.text + '</span><span class="r num">' + (when ? when + ' ' : '') + f(t) + '</span>' + CHEV + '</button>';
@@ -1358,12 +1364,18 @@
         '<p class="status-sub">앱 안 브라우저는 기록이 지워지거나 따로 저장될 수 있어요.' + (ENV.kakao ? '' : ' 오른쪽 위나 아래의 ⋯ 메뉴에서 \'다른 브라우저로 열기\'를 눌러 주세요.') + '</p>' +
         '<div class="row-actions">' + (ENV.kakao ? '<button type="button" class="primary" data-open-external>Safari·Chrome으로 열기</button>' : '<button type="button" class="ghost" data-copy-url>주소 복사</button>') + '</div></section>';
     }
-    if (!ENV.standalone && !ENV.inApp && !ENV.framed && !Local.get(K.installHide) && (ENV.ios || installEvt) && /^https?:$/.test(location.protocol)) {
-      html += '<div class="rowi mini" aria-label="홈 화면에 추가"><svg class="ico" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><rect x="6" y="2.5" width="12" height="19" rx="3"/><path d="M12 9v6M9 12h6"/></svg>' +
-        '<button type="button" class="tx link-btn quiet" style="text-align:left;padding:0;color:var(--muted)" data-install>홈 화면에 추가하면 아침에 한 번에 열려요</button>' +
-        '<button type="button" class="x" data-install-hide aria-label="이미 했어요 · 안내 숨기기">×</button></div>';
-    }
     return html;
+  }
+  // 브라우저로 쓰는 사람에게: 맨 위 '앱으로 설치' 안내 (×는 7일 숨김, '추가했어요'는 계속 숨김)
+  function installHidden() {
+    var h = Local.get(K.installHide);
+    return h === true || (h && typeof h.until === 'string' && h.until > L.toDateKey(realNow()));
+  }
+  function installBannerHtml() {
+    if (state.trial || ENV.standalone || ENV.inApp || ENV.framed || installHidden() || !/^https?:$/.test(location.protocol)) return '';
+    return '<div class="install-banner" role="region" aria-label="앱 설치 안내"><img src="icons/icon-192.png" alt="" width="40" height="40" onerror="this.remove()">' +
+      '<div class="tx"><b>dayset 앱으로 쓰기</b><span>홈 화면에 추가하면 앱처럼 열리고 아침 알림도 받아요</span></div>' +
+      '<button type="button" class="get" data-install>설치</button><button type="button" class="x" data-install-later aria-label="설치 안내 7일 동안 숨기기">×</button></div>';
   }
   // 홈 화면에 추가: 안드로이드 Chrome은 설치 창, 그 밖엔 기기별 안내
   function openInstall() {
@@ -1395,6 +1407,7 @@
   function bindExtraCards(root) {
     root.querySelectorAll('[data-reminder]').forEach(function (b) { b.addEventListener('click', openReminder); });
     root.querySelectorAll('[data-install-hide]').forEach(function (b) { b.addEventListener('click', function () { Local.set(K.installHide, true); render(); }); });
+    root.querySelectorAll('[data-install-later]').forEach(function (b) { b.addEventListener('click', function () { Local.set(K.installHide, { until: L.addDays(L.toDateKey(realNow()), 7) }); render(); toast('설정에서 언제든 홈 화면에 추가할 수 있어요.'); }); });
     root.querySelectorAll('[data-install]').forEach(function (b) { b.addEventListener('click', openInstall); });
     root.querySelectorAll('[data-open-external]').forEach(function (b) {
       b.addEventListener('click', function () { location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(location.href); });

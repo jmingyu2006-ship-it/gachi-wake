@@ -700,7 +700,7 @@ test('도움: 친구 신고(운영자에게만), 의견 보내기, 서버의 내
   await fr.getByRole('button', { name: '신고 보내기' }).click();
   await fr.getByText('신고를 보냈어요. 확인해 볼게요.').waitFor();
   const rp = srv.st.reports.find(r => r.p_kind === 'report');
-  assert.equal(rp.target_name, '민규'); assert.equal(rp.p_reason, '부적절한 이름'); assert.equal(rp.p_room, code); assert.match(rp.p_meta, /^v0\.12\.0 · web · /);
+  assert.equal(rp.target_name, '민규'); assert.equal(rp.p_reason, '부적절한 이름'); assert.equal(rp.p_room, code); assert.match(rp.p_meta, /^v0\.12\.1 · web · /);
   // 내 프로필에는 신고 버튼 없음
   await unit(fr, '민수').click();
   assert.equal(await fr.locator('#sheetBody').getByRole('button', { name: '신고하기' }).count(), 0);
@@ -794,7 +794,7 @@ test('서버에 새 기능이 아직 없으면 버튼이 숨고, 화면 오류�
   await new Promise(r => setTimeout(r, 300));
   const errs = on.st.reports.filter(r => r.p_kind === 'error');
   assert.deepEqual(errs.map(e => e.p_body), ['boom-0', 'boom-1', 'boom-2']);
-  assert.match(errs[0].p_meta, /v0\.12\.0/);
+  assert.match(errs[0].p_meta, /v0\.12\.1/);
   await q.context().close();
 });
 

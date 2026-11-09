@@ -1,16 +1,27 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
-  <rect width="512" height="512" rx="112" fill="#0E1322"/>
-  <circle cx="378" cy="128" r="44" fill="#FF8A4C"/>
-  <rect x="120" y="170" width="272" height="262" rx="22" fill="#1A2238" stroke="#2D3756" stroke-width="6"/>
-  <g>
-    <rect x="152" y="206" width="48" height="40" rx="8" fill="#283049"/>
-    <rect x="232" y="206" width="48" height="40" rx="8" fill="#FFC75A"/>
-    <rect x="312" y="206" width="48" height="40" rx="8" fill="#283049"/>
-    <rect x="152" y="278" width="48" height="40" rx="8" fill="#FFC75A"/>
-    <rect x="232" y="278" width="48" height="40" rx="8" fill="#FF8A4C"/>
-    <rect x="312" y="278" width="48" height="40" rx="8" fill="#FFC75A"/>
-    <rect x="152" y="350" width="48" height="40" rx="8" fill="#283049"/>
-    <rect x="232" y="350" width="48" height="40" rx="8" fill="#FFC75A"/>
-    <rect x="312" y="350" width="48" height="40" rx="8" fill="#283049"/>
-  </g>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#121937"/><stop offset=".42" stop-color="#2A2A5C"/>
+      <stop offset=".68" stop-color="#7C4876"/><stop offset=".86" stop-color="#EC8A5E"/><stop offset="1" stop-color="#FFC98A"/>
+    </linearGradient>
+    <radialGradient id="sun" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#FFF1C9"/><stop offset=".55" stop-color="#FFC963"/><stop offset="1" stop-color="#FF9A52"/>
+    </radialGradient>
+    <radialGradient id="halo" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#FFC98A" stop-opacity=".55"/><stop offset="1" stop-color="#FFC98A" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="5" result="b"/><feFlood flood-color="#FFC963" flood-opacity=".7"/><feComposite in2="b" operator="in"/><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <filter id="glowO" x="-80%" y="-80%" width="260%" height="260%"><feGaussianBlur stdDeviation="8" result="b"/><feFlood flood-color="#FF9A52" flood-opacity=".95"/><feComposite in2="b" operator="in"/><feMerge><feMergeNode/><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+  </defs>
+  <rect width="512" height="512" fill="url(#sky)"/>
+  <g fill="#FFFFFF"><circle cx="70" cy="74" r="2.6" opacity=".8"/><circle cx="128" cy="40" r="1.8" opacity=".6"/><circle cx="420" cy="58" r="2.4" opacity=".8"/><circle cx="462" cy="122" r="1.6" opacity=".6"/><circle cx="96" cy="150" r="1.6" opacity=".5"/><circle cx="380" cy="150" r="1.8" opacity=".55"/></g>
+  <circle cx="398" cy="338" r="170" fill="url(#halo)"/>
+  <circle cx="398" cy="338" r="66" fill="url(#sun)"/>
+  <path d="M0 512V430h40v-26h50v38h34v70z" fill="#141932"/>
+  <path d="M512 512V444h-34v-22h-44v40h-26v50z" fill="#141932"/>
+  <rect x="252" y="62" width="8" height="46" rx="4" fill="#232B49"/>
+  <circle cx="256" cy="60" r="7" fill="#FF9A52"/>
+  <linearGradient id="bld" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1D2547"/><stop offset="1" stop-color="#151A33"/></linearGradient><rect x="150" y="106" width="212" height="420" rx="18" fill="url(#bld)"/>
+  <rect x="150" y="106" width="212" height="420" rx="18" fill="none" stroke="#323C66" stroke-width="4"/>
+  <rect x="176" y="150" width="38" height="34" rx="7" fill="#FFC963" filter="url(#glow)"/><rect x="238" y="150" width="38" height="34" rx="7" fill="#2A3352"/><rect x="300" y="150" width="38" height="34" rx="7" fill="#2A3352"/><rect x="176" y="206" width="38" height="34" rx="7" fill="#2A3352"/><rect x="238" y="206" width="38" height="34" rx="7" fill="#2A3352"/><rect x="300" y="206" width="38" height="34" rx="7" fill="#FFC963" filter="url(#glow)"/><rect x="176" y="262" width="38" height="34" rx="7" fill="#2A3352"/><rect x="238" y="262" width="38" height="34" rx="7" fill="#FFC963" filter="url(#glow)"/><rect x="300" y="262" width="38" height="34" rx="7" fill="#2A3352"/><rect x="176" y="318" width="38" height="34" rx="7" fill="#FFC963" filter="url(#glow)"/><rect x="238" y="318" width="38" height="34" rx="7" fill="#FF9A52" filter="url(#glowO)"/><rect x="300" y="318" width="38" height="34" rx="7" fill="#FFC963" filter="url(#glow)"/><rect x="176" y="374" width="38" height="34" rx="7" fill="#2A3352"/><rect x="238" y="374" width="38" height="34" rx="7" fill="#FFC963" filter="url(#glow)"/><rect x="300" y="374" width="38" height="34" rx="7" fill="#2A3352"/><rect x="176" y="430" width="38" height="34" rx="7" fill="#FFC963" filter="url(#glow)"/><rect x="238" y="430" width="38" height="34" rx="7" fill="#2A3352"/><rect x="300" y="430" width="38" height="34" rx="7" fill="#FFC963" filter="url(#glow)"/>
 </svg>
