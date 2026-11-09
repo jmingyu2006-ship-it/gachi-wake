@@ -748,7 +748,41 @@
 
   // ---------- 공유 서버(선택) ----------
   function serverPayload(rec, anonId) {
-    return { anon_id: anonId, day: rec.date, bucket: Math.floor(rec.minuteOfDay / BUCKET) };
+    return { anon_id: anonId, day: rec.date, bucket: Math.floor(rec.minuteOfDay / BUCKET), minute: rec.minuteOfDay };
+  }
+
+  // ---------- 직접 입력한 시각: "7:30", "0730", "730", "7시 30분", "오후 1시" → 분 ----------
+  function parseTimeInput(str) {
+    var t = String(str == null ? '' : str).replace(/\s+/g, '').toLowerCase(), ap = null;
+    var mm = t.match(/^(오전|오후|am|pm)/) || t.match(/(오전|오후|am|pm)$/);
+    if (mm) { ap = /오후|pm/.test(mm[1]) ? 'pm' : 'am'; t = t.replace(mm[1], ''); }
+    var m = t.match(/^(\d{1,2})(?:[:.시h]?(\d{2})분?|시)?$/);
+    if (!m) return null;
+    var h = +m[1], mi = m[2] === undefined ? 0 : +m[2];
+    if (h > 23 || mi > 59) return null;
+    if (ap === 'pm' && h < 12) h += 12;
+    if (ap === 'am' && h === 12) h = 0;
+    return h * 60 + mi;
+  }
+  // 5분 단위로 맞추고 범위 안으로
+  function snapTime(min, lo, hi) { var v = Math.round(min / 5) * 5; return { min: Math.min(hi, Math.max(lo, v)), snapped: v !== min, clamped: v < lo || v > hi }; }
+
+  // ---------- 방: 나보다 바로 앞에 일어난 친구, 내 목표 ±15분에 일어난 친구 수 ----------
+  function roomPulse(view, before, target) {
+    var prev = null, near = 0;
+    ((view && view.members) || []).forEach(function (m, i) {
+      if (m.me || !isInt(m.start_min) || m.start_min < 0) return;
+      if (isInt(before) && m.start_min <= before && (!prev || m.start_min >= prev.min)) prev = { idx: i, min: m.start_min };
+      if (isInt(target) && Math.abs(m.start_min - target) <= HIT_TOL) near++;
+    });
+    return { prev: prev, near: near };
+  }
+  // 예시 모드: 30분 구간 인원으로 비슷하게
+  function demoPulse(buckets, nowMin, target) {
+    var cur = awakeUntil(buckets, nowMin), prev = null;
+    for (var x = Math.floor(nowMin); x > OPEN_MIN && x > nowMin - 180; x--) { if (awakeUntil(buckets, x) < cur) { prev = x; break; } }
+    var near = nowMin < target - HIT_TOL ? 0 : Math.max(0, awakeUntil(buckets, Math.min(nowMin, target + HIT_TOL)) - awakeUntil(buckets, target - HIT_TOL));
+    return { prev: prev, near: near };
   }
   // 서버 응답 [{bucket, n}] → 04:00~13:30 20칸
   function parseServerCounts(rows) {
@@ -782,6 +816,7 @@
     normUsername: normUsername, validUsername: validUsername, validPassword: validPassword, cleanRooms: cleanRooms,
     accountData: accountData, mergeAccount: mergeAccount,
     localStreak: localStreak, recentDays: recentDays, recordsCsv: recordsCsv,
+    parseTimeInput: parseTimeInput, snapTime: snapTime, roomPulse: roomPulse, demoPulse: demoPulse,
     SKIES: SKIES, TIER_NAMES: TIER_NAMES, MILESTONES: MILESTONES, EFFECTS: EFFECTS, MAX_SHIELDS: MAX_SHIELDS,
     pickSky: pickSky, skyById: skyById, journeyTimeline: journeyTimeline, dayInfo: dayInfo, effectTier: effectTier, nextEffect: nextEffect,
     weekRecap: weekRecap, roomTogether: roomTogether, mulberry32: mulberry32,

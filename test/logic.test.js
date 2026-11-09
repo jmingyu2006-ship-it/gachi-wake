@@ -250,11 +250,11 @@ test('방에 올릴 기록: 최근 66일만, 날짜·분만', () => {
   assert.equal(out[0].d, '2026-09-03');
 });
 
-test('서버 전송: 익명 id·날짜·30분 구간만 보낸다 (정확한 분·첫 행동은 안 보냄)', () => {
+test('서버 전송: 익명 id·날짜·구간·시작 분만 보낸다 (첫 행동·이름·날씨는 안 보냄)', () => {
   const rec = L.createStartRecord([], at(2026, 11, 9, 7, 40), S().settings).record;
   const p = L.serverPayload(rec, 'anon-1');
-  assert.deepEqual(p, { anon_id: 'anon-1', day: '2026-11-09', bucket: 15 });
-  assert.deepEqual(Object.keys(p).sort(), ['anon_id', 'bucket', 'day']);
+  assert.deepEqual(p, { anon_id: 'anon-1', day: '2026-11-09', bucket: 15, minute: 460 });
+  assert.deepEqual(Object.keys(p).sort(), ['anon_id', 'bucket', 'day', 'minute']);
 });
 
 test('서버 응답 해석: 이상한 값은 무시하고 20칸으로 맞춘다', () => {
@@ -520,4 +520,25 @@ test('방 주간 목표(각자 4번), 리포트 흔들림은 표준편차, 그�
   assert.equal(st.last14.find(d => d.key === '2026-11-03').target, 420);
   assert.equal(st.last14.find(d => d.key === '2026-11-01').target, null);
   assert.equal(st.last14.find(d => d.key === '2026-11-05').target, 380, '오늘은 지금 목표');
+});
+
+test('직접 입력한 시각을 분으로 (v0.12)', () => {
+  const p = L.parseTimeInput;
+  assert.equal(p('7:30'), 450); assert.equal(p('07:30'), 450); assert.equal(p('0730'), 450); assert.equal(p('730'), 450);
+  assert.equal(p('7'), 420); assert.equal(p('7시'), 420); assert.equal(p('7시 30분'), 450); assert.equal(p(' 6.45 '), 405);
+  assert.equal(p('오후 1시'), 780); assert.equal(p('1:30pm'), 810); assert.equal(p('오전 12:10'), 10);
+  assert.equal(p('25:00'), null); assert.equal(p('7:61'), null); assert.equal(p('abc'), null); assert.equal(p(''), null);
+  assert.deepEqual(L.snapTime(452, 240, 720), { min: 450, snapped: true, clamped: false });
+  assert.deepEqual(L.snapTime(800, 240, 720), { min: 720, snapped: false, clamped: true });
+});
+
+test('방: 바로 앞에 일어난 친구와 목표 ±15분 친구 수 (v0.12)', () => {
+  const v = { members: [{ me: true, start_min: 410 }, { start_min: 400 }, { start_min: 405 }, { start_min: 430 }, { start_min: null }, { start_min: 470 }] };
+  assert.deepEqual(L.roomPulse(v, 410, 420), { prev: { idx: 2, min: 405 }, near: 2 });
+  assert.deepEqual(L.roomPulse(v, 390, 460), { prev: null, near: 1 });
+  assert.equal(L.serverPayload({ date: '2026-11-10', minuteOfDay: 451 }, 'a').minute, 451);
+  const b = new Array(20).fill(0); b[6] = 30;   // 07:00~07:30 30명
+  const d = L.demoPulse(b, 435, 420);
+  assert.ok(d.prev >= 420 && d.prev <= 435); assert.ok(d.near > 0);
+  assert.deepEqual(L.demoPulse(b, 400, 480), { prev: null, near: 0 });
 });

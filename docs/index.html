@@ -531,6 +531,21 @@
   .mood3 button[aria-pressed="true"] .face { background: rgba(255,201,99,.16); color: var(--lit); box-shadow: inset 0 0 0 2px var(--lit); }
   .mood3 button[aria-pressed="true"] { color: var(--ink); font-weight: 700; }
   .sky-hero { height: 120px; border-radius: 16px; margin: 4px 0 14px; }
+  .time-btn { display: block; width: 100%; background: none; border: none; color: inherit; padding: 0; cursor: text; -webkit-tap-highlight-color: transparent; }
+  .time-btn:focus-visible { outline: 3px solid var(--lit); outline-offset: 4px; border-radius: 14px; }
+  .tpick .time-btn { width: auto; flex: 1; }
+  .time-input { display: block; width: 100%; margin: 10px 0 4px; padding: 6px 0; border: none; border-radius: 16px; background: var(--surface2); color: var(--ink); font-size: 52px; font-weight: 800; text-align: center; letter-spacing: -1px; outline: 2px solid var(--lit); }
+  .tpick .time-input { flex: 1; margin: 0; }
+  /* 바로 앞에 일어난 사람 말풍선 */
+  .bubble { position: absolute; z-index: 3; left: 0; top: 0; transform: translate(-50%, -100%); background: var(--ink); color: #1C1505; font-size: 11.5px; font-weight: 700; padding: 4px 9px; border-radius: 10px; white-space: nowrap; pointer-events: none; box-shadow: 0 4px 14px rgba(0,0,0,.35); }
+  .bubble::after { content: ''; position: absolute; left: 50%; bottom: -5px; margin-left: -5px; border: 5px solid transparent; border-top-color: var(--ink); border-bottom: 0; }
+  .bubble.pop { animation: bub .55s cubic-bezier(.2,1.6,.4,1) both; }
+  @keyframes bub { from { opacity: 0; transform: translate(-50%, -70%) scale(.6); } to { opacity: 1; transform: translate(-50%, -100%) scale(1); } }
+  .unit { position: relative; }
+  .unit .bubble { left: 50%; top: 0; }
+  .pulse-line { font-size: 13.5px; color: var(--muted); margin: -4px 2px 0; }
+  .pulse-line b { color: var(--ink); }
+  @media (prefers-reduced-motion: reduce) { .bubble.pop { animation: none; } }
 </style>
 </head>
 <body>
@@ -1308,7 +1323,41 @@
 
   // ---------- 공유 서버(선택) ----------
   function serverPayload(rec, anonId) {
-    return { anon_id: anonId, day: rec.date, bucket: Math.floor(rec.minuteOfDay / BUCKET) };
+    return { anon_id: anonId, day: rec.date, bucket: Math.floor(rec.minuteOfDay / BUCKET), minute: rec.minuteOfDay };
+  }
+
+  // ---------- 직접 입력한 시각: "7:30", "0730", "730", "7시 30분", "오후 1시" → 분 ----------
+  function parseTimeInput(str) {
+    var t = String(str == null ? '' : str).replace(/\s+/g, '').toLowerCase(), ap = null;
+    var mm = t.match(/^(오전|오후|am|pm)/) || t.match(/(오전|오후|am|pm)$/);
+    if (mm) { ap = /오후|pm/.test(mm[1]) ? 'pm' : 'am'; t = t.replace(mm[1], ''); }
+    var m = t.match(/^(\d{1,2})(?:[:.시h]?(\d{2})분?|시)?$/);
+    if (!m) return null;
+    var h = +m[1], mi = m[2] === undefined ? 0 : +m[2];
+    if (h > 23 || mi > 59) return null;
+    if (ap === 'pm' && h < 12) h += 12;
+    if (ap === 'am' && h === 12) h = 0;
+    return h * 60 + mi;
+  }
+  // 5분 단위로 맞추고 범위 안으로
+  function snapTime(min, lo, hi) { var v = Math.round(min / 5) * 5; return { min: Math.min(hi, Math.max(lo, v)), snapped: v !== min, clamped: v < lo || v > hi }; }
+
+  // ---------- 방: 나보다 바로 앞에 일어난 친구, 내 목표 ±15분에 일어난 친구 수 ----------
+  function roomPulse(view, before, target) {
+    var prev = null, near = 0;
+    ((view && view.members) || []).forEach(function (m, i) {
+      if (m.me || !isInt(m.start_min) || m.start_min < 0) return;
+      if (isInt(before) && m.start_min <= before && (!prev || m.start_min >= prev.min)) prev = { idx: i, min: m.start_min };
+      if (isInt(target) && Math.abs(m.start_min - target) <= HIT_TOL) near++;
+    });
+    return { prev: prev, near: near };
+  }
+  // 예시 모드: 30분 구간 인원으로 비슷하게
+  function demoPulse(buckets, nowMin, target) {
+    var cur = awakeUntil(buckets, nowMin), prev = null;
+    for (var x = Math.floor(nowMin); x > OPEN_MIN && x > nowMin - 180; x--) { if (awakeUntil(buckets, x) < cur) { prev = x; break; } }
+    var near = nowMin < target - HIT_TOL ? 0 : Math.max(0, awakeUntil(buckets, Math.min(nowMin, target + HIT_TOL)) - awakeUntil(buckets, target - HIT_TOL));
+    return { prev: prev, near: near };
   }
   // 서버 응답 [{bucket, n}] → 04:00~13:30 20칸
   function parseServerCounts(rows) {
@@ -1342,6 +1391,7 @@
     normUsername: normUsername, validUsername: validUsername, validPassword: validPassword, cleanRooms: cleanRooms,
     accountData: accountData, mergeAccount: mergeAccount,
     localStreak: localStreak, recentDays: recentDays, recordsCsv: recordsCsv,
+    parseTimeInput: parseTimeInput, snapTime: snapTime, roomPulse: roomPulse, demoPulse: demoPulse,
     SKIES: SKIES, TIER_NAMES: TIER_NAMES, MILESTONES: MILESTONES, EFFECTS: EFFECTS, MAX_SHIELDS: MAX_SHIELDS,
     pickSky: pickSky, skyById: skyById, journeyTimeline: journeyTimeline, dayInfo: dayInfo, effectTier: effectTier, nextEffect: nextEffect,
     weekRecap: weekRecap, roomTogether: roomTogether, mulberry32: mulberry32,
@@ -1372,7 +1422,7 @@
     crowd: null, crowdDay: null, serverOk: null, clearArmed: false, saving: Promise.resolve(), ob: null, edit: null,
     rooms: [], view: 'all', roomData: {}, roomSeen: {}, cheers: {}, nick: '', invite: null, leaveArmed: false, account: null, features: []
   };
-  var APP_VERSION = 'v0.11.1';
+  var APP_VERSION = 'v0.12.0';
   function has(f) { return state.features.indexOf(f) >= 0; }
 
   // ---------- 기기 저장 ----------
@@ -1542,7 +1592,7 @@
     var rand = (function (s) { return function () { s = (s * 9301 + 49297) % 233280; return s / 233280; }; })(7);
     for (var i = 0; i < 18; i++) sky += '<span class="star" style="left:' + Math.round(rand() * 92) + '%;top:' + Math.round(rand() * 80) + '%"></span>';
     sky += '<span class="orb"></span></div>';
-    scene.innerHTML = sky + '<div class="building" role="img" id="buildingImg" aria-label="불 켜진 창문"><div class="grid" id="winGrid"></div></div><div class="ground"></div>';
+    scene.innerHTML = sky + '<div class="building" role="img" id="buildingImg" aria-label="불 켜진 창문"><div class="grid" id="winGrid"></div></div><div class="ground"></div><span class="bubble" id="pulseBubble" hidden></span>';
   })();
   // 창문: 1칸 = 1명. 0번이 맨 아래층 왼쪽이고, 사람이 늘면 위로 층이 올라간다.
   var gridEl = scene.querySelector('#winGrid'), winEls = [], gridTotal = 0;
@@ -1610,6 +1660,46 @@
     var people = count + (rec ? 1 : 0);
     if (vc) vc.innerHTML = '<b class="num">' + people.toLocaleString('ko-KR') + '명</b> 시작';
     scene.querySelector('#buildingImg').setAttribute('aria-label', '불 켜진 창문 ' + (lw.lit.length + (rec ? 1 : 0)) + '개' + (rec ? ', 내 창문 포함' : ''));
+    updatePulse();
+  }
+
+  // ---------- 바로 앞에 일어난 사람(말풍선) · 내 목표 ±15분에 일어난 사람 수 ----------
+  function pulseArgs(now) {
+    var key = L.toDateKey(now), rec = L.findDay(currentRecords(), key), s = state.settings;
+    return { key: key, rec: rec, before: rec ? rec.minuteOfDay : Math.min(1439, L.minuteOfDay(now)), target: rec && Number.isInteger(rec.dayTarget) ? rec.dayTarget : L.planTargetFor(s, key) };
+  }
+  function refreshPulse() {
+    if (!Server.on || !has('pulse') || !state.settings) return Promise.resolve();
+    var a = pulseArgs(state.trial ? realNow() : effectiveNow());
+    return Server.rpc('day_pulse', { p_anon: anonId, p_day: a.key, p_before: a.before, p_target: Math.min(720, a.target) }).then(function (r) {
+      if (r && !r.error) state.pulse = { key: a.key, prev: Number.isInteger(r.prev) ? r.prev : null, near: Math.max(0, +r.near || 0), target: a.target, before: a.before };
+    }).catch(function () {}).then(function () { if (state.tab === 'today' && !currentRoom()) updatePulse(); });
+  }
+  function pulseData(now) {
+    var a = pulseArgs(now);
+    if (!Server.on) {
+      var b = L.crowdForDay(a.key), nowF = nowMinuteFrac(now);
+      return { prev: L.demoPulse(b, a.rec ? a.before : nowF, a.target).prev, near: L.demoPulse(b, nowF, a.target).near, target: a.target };
+    }
+    var p = state.pulse;
+    if (state.trial || !p || p.key !== a.key) return null;
+    if (p.target !== a.target || p.before !== a.before) refreshPulse();   // 방금 눌렀거나 목표가 바뀜
+    return p;
+  }
+  function pulseLineHtml(near, target, who) {
+    return '내 목표 시각(<b class="num">' + L.formatMinute(target) + '</b> ±15분)에 일어난 ' + who + ' <b class="num">' + near + '명</b>';
+  }
+  function updatePulse() {
+    var bub = scene.querySelector('#pulseBubble'), line = document.getElementById('pulseLine'), now = effectiveNow();
+    var p = pulseData(now);
+    if (!p || L.dayPhase(L.minuteOfDay(now)) === 'before') { bub.hidden = true; if (line) line.hidden = true; return; }
+    if (line) { line.innerHTML = pulseLineHtml(p.near, p.target, '사람'); line.hidden = false; }
+    var lit = winEls.filter(function (el) { return el.classList.contains('on') && !el.classList.contains('me'); });
+    if (p.prev === null || !lit.length || !scene.isConnected) { bub.hidden = true; return; }
+    var el = lit.reduce(function (a, b) { return +b.dataset.i > +a.dataset.i ? b : a; });   // 맨 위층 쪽 창문
+    var text = 'hi! ' + L.formatMinute(p.prev) + ' 기상', sr = scene.getBoundingClientRect(), r = el.getBoundingClientRect();
+    bub.style.left = (r.left - sr.left + r.width / 2) + 'px'; bub.style.top = (r.top - sr.top - 4) + 'px';
+    if (bub.textContent !== text || bub.hidden) { bub.textContent = text; bub.hidden = false; bub.classList.remove('pop'); void bub.offsetWidth; bub.classList.add('pop'); }
   }
   function blinkOne() {
     if (reduced) return;
@@ -1623,7 +1713,7 @@
     var key = L.toDateKey(effectiveNow());
     return Server.counts(key).then(function (b) {
       state.crowd = b; state.crowdDay = key; state.serverOk = true;
-    }).catch(function () { state.serverOk = false; }).then(function () { if (state.tab === 'today') updateScene(); });
+    }).catch(function () { state.serverOk = false; }).then(function () { if (state.tab === 'today') updateScene(); return refreshPulse(); });
   }
 
   // ---------- 그리기 ----------
@@ -1722,7 +1812,7 @@
         '<div class="hero-time num">' + f(rec.minuteOfDay) + '</div>' +
         '<div class="hero-sub"><span>' + (diffText(rec) || '기록했어요') + '</span>' +
         (state.trial ? '' : '<button type="button" class="link-btn' + (mood ? ' set' : '') + '" data-mood-open>' + (mood ? '컨디션 · ' + mood.label : '컨디션 기록') + '</button>') + '</div></section>';
-      html += room ? roomSceneHtml(room) : '<div id="sceneSlot"></div>';
+      html += (room ? roomSceneHtml(room) : '<div id="sceneSlot"></div>') + '<p class="pulse-line" id="pulseLine" hidden></p>';
       var tl = journey(now), di = L.dayInfo(tl, key), sk = L.skyById(di && di.sky);
       after += '<div class="rows">' + rowHtml('data-sky-today', '오늘의 하늘', esc(sk.name), '', skySwatch(sk)) +
         '<div class="rowi"><span class="tx"><span class="k">첫 행동</span><span class="v">' + esc(s.firstAction) + '</span></span>' +
@@ -1735,13 +1825,13 @@
       html += '<section class="hero"><div class="label">오늘 목표</div><div class="hero-time num">' + f(plan.today) + '</div>' +
         '<div class="hero-sub"><span>' + (off ? '오늘은 쉬는 요일이에요 · ' : '') + hint + '</span>' +
         (plan.stepping ? '<span class="num">최종 ' + f(plan.final) + '까지 ' + (plan.stepsLeft || Math.ceil(plan.daysLeft / 3)) + '단계</span>' : '') + '</div></section>';
-      html += room ? roomSceneHtml(room) : '<div id="sceneSlot"></div>';
+      html += (room ? roomSceneHtml(room) : '<div id="sceneSlot"></div>') + '<p class="pulse-line" id="pulseLine" hidden></p>';
       after += '<button type="button" class="start-btn" id="startBtn">' + SUN + '하루 시작</button>';
       after += alarmRow('', L.planTargetFor(s, tomorrowKey));
     } else if (phase === 'before') {
       html += '<section class="hero"><div class="label">오늘 목표</div><div class="hero-time num">' + f(plan.today) + '</div>' +
         '<div class="hero-sub"><span>지금은 잘 시간이에요 · 목표까지 <b class="num" style="white-space:nowrap">' + dur(plan.today - min) + '</b> 잘 수 있어요<span class="hint2">기록은 새벽 4시부터</span></span></div></section>';
-      html += room ? roomSceneHtml(room) : '<div id="sceneSlot"></div>';
+      html += (room ? roomSceneHtml(room) : '<div id="sceneSlot"></div>') + '<p class="pulse-line" id="pulseLine" hidden></p>';
       after += alarmRow('오늘', plan.today);
       if (!state.trial) after += '<div class="center"><button type="button" class="link-btn quiet" data-open-trial>아침 시간으로 체험해보기</button></div>';
     } else {
@@ -1749,7 +1839,7 @@
       html += '<section class="hero"><div class="label">내일 목표</div><div class="hero-time num">' + f(tm) + '</div>' +
         '<div class="hero-sub"><span>' + (first ? '첫 기록은 내일 아침부터' : '오늘 기록은 오후 2시에 마감됐어요') + (L.isOffDay(s, tomorrowKey) ? ' · 내일은 쉬는 요일' : '') +
         '<span class="hint2">오늘 밤 <b class="num">' + L.bedtimeFor(tm, s.sleepNeedH) + '</b>쯤 누우면 ' + s.sleepNeedH + '시간 잘 수 있어요</span></span></div></section>';
-      html += room ? roomSceneHtml(room) : '<div id="sceneSlot"></div>';
+      html += (room ? roomSceneHtml(room) : '<div id="sceneSlot"></div>') + '<p class="pulse-line" id="pulseLine" hidden></p>';
       after += alarmRow('내일', tm);
       if (!state.trial) after += '<div class="center"><button type="button" class="link-btn quiet" data-open-trial>아침 시간으로 체험해보기</button></div>';
     }
@@ -2370,8 +2460,8 @@
         (push.endpoint ? '<div class="center"><button type="button" class="link-btn quiet" id="pushTest">테스트 알림 보내기</button></div>' : '')
       : (env === 'ios-browser' ? '<p class="hint-small">아이폰은 홈 화면에 추가한 앱에서 푸시 알림을 켤 수 있어요.</p>' : env === 'denied' ? '<p class="hint-small">알림이 꺼져 있어요. 휴대폰 설정에서 허용하면 여기서 켤 수 있어요.</p>' : '');
     el.innerHTML = '<h2 id="sheetTitle">내일 아침</h2>' +
-      '<div class="section-label">목표 시각</div><div class="tpick"><button type="button" data-m-step="-5" aria-label="5분 빠르게">‹</button><div class="time-big num" id="mCur" aria-live="polite">' + L.formatMinute(m.cur) + '</div><button type="button" data-m-step="5" aria-label="5분 늦게">›</button></div>' +
-      '<p class="hint-small center" id="mNote"></p>' +
+      '<div class="section-label">목표 시각</div><div class="tpick"><button type="button" data-m-step="-5" aria-label="5분 빠르게">‹</button><button type="button" class="time-big time-btn num" id="mCur" aria-live="polite" aria-label="' + L.formatMinute(m.cur) + ' · 눌러서 직접 입력">' + L.formatMinute(m.cur) + '</button><button type="button" data-m-step="5" aria-label="5분 늦게">›</button></div>' +
+      '<p class="hint-small center" id="mNote"></p><p class="hint-small center" style="margin-top:0">시각을 누르면 직접 입력할 수 있어요</p>' +
       '<div class="section-label">참여 요일</div><div class="days7" role="group" aria-label="참여 요일">' + WEEK_MON.map(function (i) {
         return '<button type="button" class="pill" data-day="' + i + '" aria-pressed="' + (m.days.indexOf(i) >= 0) + '">' + DAY_NAMES[i] + '</button>'; }).join('') + '</div>' +
       '<p class="hint-small">쉬는 요일은 기록하지 않아도 연속 기록이 이어지고, 알림도 오지 않아요.</p>' +
@@ -2393,6 +2483,10 @@
         if (v < L.TARGET_MIN_LO || v > Math.min(L.TARGET_MIN_HI, L.CLOSE_MIN - 5)) return;
         m.cur = v; el.querySelector('#mCur').textContent = L.formatMinute(v); note();
       });
+    });
+    el.querySelector('#mCur').addEventListener('click', function () {
+      var b = this;
+      startTimeEdit(b, m.cur, [L.TARGET_MIN_LO, L.TARGET_MIN_HI], function (v) { m.cur = v; b.textContent = L.formatMinute(v); b.setAttribute('aria-label', L.formatMinute(v) + ' · 눌러서 직접 입력'); note(); });
     });
     el.querySelectorAll('[data-day]').forEach(function (b) {
       b.addEventListener('click', function () {
@@ -2778,17 +2872,54 @@
 
   // ---------- 목표 설정 (온보딩·설정 공용) ----------
   function timeControl(id, value) {
-    return '<div class="time-big num" id="' + id + 'Val" aria-live="polite">' + L.formatMinute(value) + '</div>' +
+    return '<button type="button" class="time-big time-btn num" id="' + id + 'Val" data-type-for="' + id + '" aria-live="polite" aria-label="' + L.formatMinute(value) + ' · 눌러서 직접 입력">' + L.formatMinute(value) + '</button>' +
       '<div class="stepper" data-for="' + id + '"><button type="button" data-d="-15" aria-label="15분 빠르게">−15분</button><button type="button" data-d="-5" aria-label="5분 빠르게">−5분</button>' +
-      '<button type="button" data-d="5" aria-label="5분 늦게">+5분</button><button type="button" data-d="15" aria-label="15분 늦게">+15분</button></div>';
+      '<button type="button" data-d="5" aria-label="5분 늦게">+5분</button><button type="button" data-d="15" aria-label="15분 늦게">+15분</button></div>' +
+      '<p class="hint-small center" style="margin-top:8px">시각을 누르면 7:30처럼 직접 입력할 수 있어요</p>';
+  }
+  // 큰 시각을 누르면 그 자리에서 입력칸으로: "7:30", "0730", "7시 30분" 모두 받고 5분 단위로 맞춤
+  function startTimeEdit(btn, cur, range, done) {
+    if (btn.dataset.editing) return;
+    btn.dataset.editing = '1';
+    var inp = document.createElement('input'), ended = false;
+    inp.type = 'text'; inp.inputMode = 'numeric'; inp.className = 'time-input num'; inp.value = L.formatMinute(cur);
+    inp.autocomplete = 'off'; inp.maxLength = 12; inp.setAttribute('aria-label', '시각 직접 입력 (예: 7:30)'); inp.setAttribute('enterkeyhint', 'done');
+    btn.hidden = true; btn.parentNode.insertBefore(inp, btn.nextSibling); inp.focus(); inp.select();
+    var finish = function (commit) {
+      if (ended) return; ended = true;
+      var raw = inp.value.trim(), v = commit ? L.parseTimeInput(raw) : null;
+      if (commit && v === null && raw && raw !== L.formatMinute(cur)) toast('7:30이나 0730처럼 적어 주세요.');
+      inp.remove(); btn.hidden = false; delete btn.dataset.editing;
+      if (v !== null) {
+        var sn = L.snapTime(v, range[0], range[1]);
+        if (sn.clamped) toast(L.formatMinute(range[0]) + '~' + L.formatMinute(range[1]) + ' 사이로 맞췄어요.');
+        else if (sn.snapped) toast('5분 단위로 맞췄어요 · ' + L.formatMinute(sn.min));
+        done(sn.min);
+      }
+      btn.focus();
+    };
+    inp.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); finish(true); }
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); finish(false); }
+    });
+    inp.addEventListener('blur', function () { finish(true); });
   }
   function bindSteppers(root, model, ranges) {
+    root.querySelectorAll('[data-type-for]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var f = btn.dataset.typeFor;
+        startTimeEdit(btn, model[f], ranges[f], function (v) {
+          model[f] = v; btn.textContent = L.formatMinute(v); btn.setAttribute('aria-label', L.formatMinute(v) + ' · 눌러서 직접 입력');
+          var p = root.querySelector('#planPreview'); if (p) p.innerHTML = planPreview(model);
+        });
+      });
+    });
     root.querySelectorAll('.stepper').forEach(function (st) {
       st.addEventListener('click', function (e) {
         var b = e.target.closest('[data-d]'); if (!b) return;
         var f = st.dataset.for, r = ranges[f];
         model[f] = Math.min(r[1], Math.max(r[0], model[f] + Number(b.dataset.d)));
-        root.querySelector('#' + f + 'Val').textContent = L.formatMinute(model[f]);
+        var vb = root.querySelector('#' + f + 'Val'); vb.textContent = L.formatMinute(model[f]); vb.setAttribute('aria-label', L.formatMinute(model[f]) + ' · 눌러서 직접 입력');
         var p = root.querySelector('#planPreview'); if (p) p.innerHTML = planPreview(model);
       });
     });
@@ -2919,7 +3050,7 @@
       '<div class="section-label">내 기록</div><button type="button" class="secondary" id="exportCsv" style="width:100%;min-height:48px">기록 내보내기 (엑셀·CSV)</button>' +
       '<button type="button" class="danger" id="clearAll">이 기기의 기록 모두 지우기</button>' +
       (has('erase') ? '<button type="button" class="danger" id="eraseServer">서버에 있는 내 기록 지우기</button><p class="hint-small">모든 방에서 나가고, 방 친구에게 보이던 기록과 전체 창문 기록을 지워요. 이 기기의 기록과 계정은 그대로예요.</p>' : '') +
-      '<p class="server-line">' + (Server.on ? '전체 창문에는 익명 기기 번호·날짜·30분 구간만 보내요. 방에 들어가면 방에서 쓰는 이름과 시작 시각이 그 방 사람들에게만 보여요.' : '공유 서버 없이 예시 창문을 보여주는 버전이에요. 내 기록은 이 기기에만 저장돼요.') + '</p>' +
+      '<p class="server-line">' + (Server.on ? '전체 창문에는 익명 기기 번호·날짜·시작 시각만 보내고, 다른 사람에겐 이름 없이 합계와 직전 한 사람의 시각만 보여요. 방에 들어가면 방에서 쓰는 이름과 시작 시각이 그 방 사람들에게만 보여요.' : '공유 서버 없이 예시 창문을 보여주는 버전이에요. 내 기록은 이 기기에만 저장돼요.') + '</p>' +
       '<p class="legal-line">' + legalLinks() + (Server.on ? '<br>내 기기 번호 앞 8자리 <span class="code">' + esc(String(anonId).slice(0, 8)) + '</span> (문의할 때 알려 주세요)' : '') + ' · ' + APP_VERSION + '</p>' +
       '<button type="button" class="close-btn" id="closeSheet">닫기</button>';
     document.getElementById('sheet').hidden = false;
@@ -3229,13 +3360,16 @@
     }
     var rs = L.roomSlots(d.view, rec ? rec.minuteOfDay : null);
     var seen = state.roomSeen[room.code + key] || (state.roomSeen[room.code + key] = {});
+    var pa = pulseArgs(now), rp = L.roomPulse(d.view, pa.before, pa.target), pl = document.getElementById('pulseLine');
+    if (pl) { pl.innerHTML = pulseLineHtml(rp.near, pa.target, '친구'); pl.hidden = rs.total < 2; }
+    var bsig = rp.prev ? room.code + key + ':' + rp.prev.idx + ':' + rp.prev.min : '', bpop = bsig && state.roomBubble !== bsig && !reduced; state.roomBubble = bsig;
     grid.style.setProperty('--cols', rs.slots.length <= 3 ? 3 : 4);
     grid.innerHTML = rs.slots.map(function (s, i) {
       var id = i + ':' + s.name, on = s.min !== null, pop = on && !seen[id] && !reduced;
       if (on) seen[id] = true;
       return '<button type="button" class="unit' + (on ? ' on' : '') + (s.me ? ' me' : '') + (pop ? ' pop' : '') + '" data-member="' + i + '" aria-label="' +
         esc(s.name) + (s.me ? ' (나)' : '') + (s.owner ? ', 방장' : '') + ', ' + (s.time ? s.time + ' 시작' : '아직') + ', 프로필 보기"><span class="w"></span>' +
-        '<span class="nm">' + (s.owner ? CROWN : '') + (s.me ? '나' : esc(s.name)) + sentMark(room, d.view.members[i]) + '</span><span class="tm">' + (s.time || '아직') + '</span></button>';
+        (rp.prev && rp.prev.idx === i ? '<span class="bubble' + (bpop ? ' pop' : '') + '" aria-hidden="true">hi! ' + L.formatMinute(rp.prev.min) + ' 기상</span>' : '') + '<span class="nm">' + (s.owner ? CROWN : '') + (s.me ? '나' : esc(s.name)) + sentMark(room, d.view.members[i]) + '</span><span class="tm">' + (s.time || '아직') + '</span></button>';
     }).join('');
     document.getElementById('roomImg').setAttribute('aria-label', room.name + ' 건물, 창문을 누르면 프로필이 열려요');
     var tg = L.roomTogether(d.view, key, rec ? rec.minuteOfDay : null);
@@ -3798,7 +3932,7 @@
     Server.rpc('app_info', {}).then(function (i) {
       if (i && Array.isArray(i.features)) state.features = i.features.filter(function (f) { return typeof f === 'string'; });
       if (i && typeof i.vapid === 'string' && /^[A-Za-z0-9_-]{80,100}$/.test(i.vapid)) state.vapid = i.vapid;
-      flushErrors(); syncRests(); updatePushPrefs(); flushFunnel();
+      flushErrors(); syncRests(); updatePushPrefs(); flushFunnel(); refreshPulse();
     }).catch(function () {});
     setInterval(function () { if (document.visibilityState !== 'hidden') refreshCrowd(); }, 30000);
     document.addEventListener('visibilitychange', function () {

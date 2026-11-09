@@ -119,3 +119,71 @@ test('디자인: 390×844 첫 화면에 시간·창문·시작 버튼이 스크�
   await page.waitForTimeout(400); await shot(page, 'night');
   assert.deepEqual(page.errors, []);
 });
+
+test('v0.12: 바로 앞에 일어난 사람 말풍선 + 목표 ±15분 인원 (서버) / 예시 모드에도 / 시각 직접 입력', async () => {
+  // 서버: day_pulse가 직전 06:40, 목표 근처 3명을 돌려줌
+  const calls = [];
+  const srv = { attach: async (page) => {
+    await page.route('**/config.js', r => r.fulfill({ contentType: 'text/javascript', body: "window.GACHI_CONFIG={supabaseUrl:'https://mock.supabase.test',supabaseAnonKey:'k'};" }));
+    await page.route('https://mock.supabase.test/**', async (route) => {
+      const url = route.request().url(), body = route.request().postDataJSON ? (route.request().postDataJSON() || {}) : {};
+      const json = (b) => route.fulfill({ contentType: 'application/json', body: JSON.stringify(b) });
+      const fn = (url.match(/rpc\/(\w+)/) || [])[1] || '';
+      if (url.includes('wake_events')) { calls.push(['post', body]); return route.fulfill({ status: 201, body: '' }); }
+      if (fn === 'day_counts') return json([{ bucket: 13, n: 4 }]);
+      if (fn === 'app_info') return json({ v: 10, features: ['pulse'] });
+      if (fn === 'day_pulse') { calls.push([fn, body]); return json({ prev: body.p_before >= 400 ? 400 : null, near: 3 }); }
+      return json(null);
+    });
+  } };
+  let page = await open('2026-11-08T06:50:00', { srv, seed: { settings: SET({ cur: 420 }), days: [] } });
+  const bub = page.locator('#pulseBubble');
+  await page.locator('#pulseBubble', { hasText: 'hi! 06:40 기상' }).waitFor();
+  await page.getByText('내 목표 시각(07:00 ±15분)에 일어난 사람 3명').waitFor();
+  const last = calls.filter(c => c[0] === 'day_pulse').pop()[1];
+  assert.equal(last.p_target, 420); assert.equal(last.p_before, 410);
+  // 말풍선은 장면 안, 켜진 창문 위
+  const bb = await bub.boundingBox(), sb = await page.locator('.scene').boundingBox();
+  assert.ok(bb.y >= sb.y && bb.x >= sb.x && bb.x + bb.width <= sb.x + sb.width + 1);
+  await page.waitForTimeout(600); await shot(page, 'pulse');
+  // 누르면 정확한 분도 함께 보내고, 내 시각 기준으로 다시 묻는다
+  await page.getByRole('button', { name: '하루 시작', exact: true }).click();
+  await page.clock.runFor(400);
+  await page.locator('#cer').getByRole('button', { name: '확인' }).click();
+  for (let i = 0; i < 20 && !calls.some(c => c[0] === 'post'); i++) await page.clock.runFor(100);
+  assert.equal(calls.find(c => c[0] === 'post')[1].minute, 410);
+  assert.deepEqual(page.errors, []);
+  await page.context().close();
+
+  // 예시 모드(서버 없음)에서도 말풍선과 인원 줄
+  page = await open('2026-11-08T07:30:00', { seed: { settings: SET({ cur: 450 }), days: [] } });
+  await page.locator('#pulseBubble', { hasText: /^hi! \d\d:\d\d 기상$/ }).waitFor();
+  await page.getByText(/내 목표 시각\(07:30 ±15분\)에 일어난 사람 \d+명/).waitFor();
+  // 내일 아침: 큰 시각을 눌러 직접 입력 (0712 → 5분 단위 07:10, 범위 밖은 맞춤, 틀린 값은 안내)
+  await page.getByRole('button', { name: '설정 열기' }).click();
+  await page.getByRole('button', { name: /내일 아침/ }).click();
+  await page.locator('#mCur').click();
+  await page.getByLabel('시각 직접 입력 (예: 7:30)').fill('0712');
+  await page.keyboard.press('Enter');
+  await page.getByText('5분 단위로 맞췄어요 · 07:10').waitFor();
+  assert.equal(await page.locator('#mCur').textContent(), '07:10');
+  await page.locator('#mCur').click();
+  await page.getByLabel('시각 직접 입력 (예: 7:30)').fill('아무거나');
+  await page.keyboard.press('Enter');
+  await page.getByText('7:30이나 0730처럼 적어 주세요.').waitFor();
+  assert.equal(await page.locator('#mCur').textContent(), '07:10');
+  await page.getByRole('button', { name: '저장', exact: true }).click();
+  await page.getByText('저장했어요.').waitFor();
+  const st = await page.evaluate(() => JSON.parse(localStorage.getItem('gachi-v2-settings')));
+  assert.equal(st.cur, 430); assert.equal(st.targetMin, 420);
+  // 목표 계획(온보딩과 같은 입력): "6시 30분" → 06:30
+  await page.getByRole('button', { name: '설정 열기' }).click();
+  await page.getByRole('button', { name: /목표 계획/ }).click();
+  await page.locator('#targetMinVal').click();
+  await page.getByLabel('시각 직접 입력 (예: 7:30)').fill('6시 30분');
+  await page.keyboard.press('Enter');
+  assert.equal(await page.locator('#targetMinVal').textContent(), '06:30');
+  await page.getByText('06:30까지', { exact: false }).waitFor();   // 단계 미리보기도 바로 바뀜
+  assert.deepEqual(page.errors, []);
+  await page.context().close();
+});

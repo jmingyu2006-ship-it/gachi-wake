@@ -270,7 +270,8 @@ test('공유 서버(모의): 익명 id·날짜·구간만 보내고, 서버 인�
   await page.clock.runFor(1600);
   await page.getByText('6명').waitFor();
   assert.equal(posts.length, 1);
-  assert.deepEqual(Object.keys(posts[0]).sort(), ['anon_id', 'bucket', 'day']);
+  assert.deepEqual(Object.keys(posts[0]).sort(), ['anon_id', 'bucket', 'day', 'minute']);
+  assert.equal(posts[0].minute, 460);
   assert.equal(posts[0].day, '2026-11-09');
   assert.equal(posts[0].bucket, 15);
   assert.match(posts[0].anon_id, /^[0-9a-f-]{36}$/);

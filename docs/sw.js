@@ -1,6 +1,6 @@
 // 같이 일어나요 — 오프라인에서도 앱이 열리게 하는 서비스 워커
 // 앱 파일을 바꿔 배포할 때는 VERSION을 올려 주세요.
-const VERSION = 'gachi-v0.11.1';
+const VERSION = 'gachi-v0.12.0';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './config.js', './icons/icon-192.png', './icons/icon-512.png', './og.png'];
 
 self.addEventListener('install', (e) => {

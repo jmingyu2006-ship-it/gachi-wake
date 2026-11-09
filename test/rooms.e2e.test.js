@@ -292,6 +292,10 @@ test('나와 친구: 방 만들기 → 초대 링크 → 친구 참여 → 서�
   await fr.clock.runFor(21000);
   await fr.locator('#viewCount', { hasText: '모두 켜졌어요 · 2명' }).waitFor();
   assert.match(await unit(fr, '민규').textContent(), /민규06:3\d/);
+  // 나보다 바로 앞에 일어난 친구 창문 위에 말풍선, 목표 ±15분 친구 수
+  assert.match(await unit(fr, '민규').locator('.bubble').textContent(), /^hi! 06:3\d 기상$/);
+  assert.equal(await unit(fr, '민수').locator('.bubble').count(), 0);
+  await fr.getByText('내 목표 시각(07:45 ±15분)에 일어난 친구 0명').waitFor();
   await fr.clock.runFor(1500);
   await fr.screenshot({ path: path.join(SHOTS, '11-room-friend.png') });
 
@@ -310,8 +314,8 @@ test('나와 친구: 방 만들기 → 초대 링크 → 친구 참여 → 서�
   await me.clock.runFor(21000);
   await me.locator('#viewCount', { hasText: '1 / 1명 시작' }).waitFor();
 
-  // 서버로 보낸 값: 전체 건물엔 익명 id·날짜·구간만
-  for (const w of srv.st.wakes.values()) assert.deepEqual(Object.keys(w).sort(), ['anon_id', 'bucket', 'day']);
+  // 서버로 보낸 값: 전체 건물엔 익명 id·날짜·구간·분만 (이름 없음)
+  for (const w of srv.st.wakes.values()) assert.deepEqual(Object.keys(w).sort(), ['anon_id', 'bucket', 'day', 'minute']);
   assert.deepEqual(me.errors, []);
   assert.deepEqual(fr.errors, []);
   await me.context().close(); await fr.context().close();
@@ -696,7 +700,7 @@ test('도움: 친구 신고(운영자에게만), 의견 보내기, 서버의 내
   await fr.getByRole('button', { name: '신고 보내기' }).click();
   await fr.getByText('신고를 보냈어요. 확인해 볼게요.').waitFor();
   const rp = srv.st.reports.find(r => r.p_kind === 'report');
-  assert.equal(rp.target_name, '민규'); assert.equal(rp.p_reason, '부적절한 이름'); assert.equal(rp.p_room, code); assert.match(rp.p_meta, /^v0\.11\.1 · web · /);
+  assert.equal(rp.target_name, '민규'); assert.equal(rp.p_reason, '부적절한 이름'); assert.equal(rp.p_room, code); assert.match(rp.p_meta, /^v0\.12\.0 · web · /);
   // 내 프로필에는 신고 버튼 없음
   await unit(fr, '민수').click();
   assert.equal(await fr.locator('#sheetBody').getByRole('button', { name: '신고하기' }).count(), 0);
@@ -790,7 +794,7 @@ test('서버에 새 기능이 아직 없으면 버튼이 숨고, 화면 오류�
   await new Promise(r => setTimeout(r, 300));
   const errs = on.st.reports.filter(r => r.p_kind === 'error');
   assert.deepEqual(errs.map(e => e.p_body), ['boom-0', 'boom-1', 'boom-2']);
-  assert.match(errs[0].p_meta, /v0\.11\.1/);
+  assert.match(errs[0].p_meta, /v0\.12\.0/);
   await q.context().close();
 });
 
