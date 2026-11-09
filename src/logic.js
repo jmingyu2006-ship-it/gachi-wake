@@ -777,6 +777,13 @@
     });
     return { prev: prev, near: near };
   }
+  // 말풍선 인사: 날짜·시각마다 정해져서 새로 고쳐도 같은 말
+  var GREETS = ['hi!', 'hello!', '굿모닝!', '좋은 아침!', '안녕!', 'morning!', '일어났다!', '하이!', '반가워!', '오늘도!'];
+  function greetFor(day, min) {
+    var h = 7, t = String(day) + ':' + min;
+    for (var i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) >>> 0;
+    return GREETS[h % GREETS.length];
+  }
   // 예시 모드: 30분 구간 인원으로 비슷하게
   function demoPulse(buckets, nowMin, target) {
     var cur = awakeUntil(buckets, nowMin), prev = null;
@@ -816,7 +823,7 @@
     normUsername: normUsername, validUsername: validUsername, validPassword: validPassword, cleanRooms: cleanRooms,
     accountData: accountData, mergeAccount: mergeAccount,
     localStreak: localStreak, recentDays: recentDays, recordsCsv: recordsCsv,
-    parseTimeInput: parseTimeInput, snapTime: snapTime, roomPulse: roomPulse, demoPulse: demoPulse,
+    greetFor: greetFor, GREETS: GREETS, parseTimeInput: parseTimeInput, snapTime: snapTime, roomPulse: roomPulse, demoPulse: demoPulse,
     SKIES: SKIES, TIER_NAMES: TIER_NAMES, MILESTONES: MILESTONES, EFFECTS: EFFECTS, MAX_SHIELDS: MAX_SHIELDS,
     pickSky: pickSky, skyById: skyById, journeyTimeline: journeyTimeline, dayInfo: dayInfo, effectTier: effectTier, nextEffect: nextEffect,
     weekRecap: weekRecap, roomTogether: roomTogether, mulberry32: mulberry32,

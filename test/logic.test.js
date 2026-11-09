@@ -542,3 +542,11 @@ test('방: 바로 앞에 일어난 친구와 목표 ±15분 친구 수 (v0.12)',
   assert.ok(d.prev >= 420 && d.prev <= 435); assert.ok(d.near > 0);
   assert.deepEqual(L.demoPulse(b, 400, 480), { prev: null, near: 0 });
 });
+
+test('말풍선 인사: 같은 날·시각엔 같은 말, 여러 가지가 나온다 (v0.12.2)', () => {
+  assert.equal(L.greetFor('2026-11-10', 483), L.greetFor('2026-11-10', 483));
+  const seen = new Set();
+  for (let m = 300; m < 600; m += 7) seen.add(L.greetFor('2026-11-10', m));
+  assert.ok(seen.size >= 5, [...seen].join(','));
+  for (const g of seen) assert.ok(L.GREETS.includes(g));
+});

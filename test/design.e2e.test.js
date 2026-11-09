@@ -138,7 +138,7 @@ test('v0.12: 바로 앞에 일어난 사람 말풍선 + 목표 ±15분 인원 (�
   } };
   let page = await open('2026-11-08T06:50:00', { srv, seed: { settings: SET({ cur: 420 }), days: [] } });
   const bub = page.locator('#pulseBubble');
-  await page.locator('#pulseBubble', { hasText: 'hi! 06:40 기상' }).waitFor();
+  await page.locator('#pulseBubble', { hasText: / 06:40 기상$/ }).waitFor();
   await page.getByText('내 목표 시각(07:00 ±15분)에 일어난 사람 3명').waitFor();
   const last = calls.filter(c => c[0] === 'day_pulse').pop()[1];
   assert.equal(last.p_target, 420); assert.equal(last.p_before, 410);
@@ -154,10 +154,14 @@ test('v0.12: 바로 앞에 일어난 사람 말풍선 + 목표 ±15분 인원 (�
   assert.equal(calls.find(c => c[0] === 'post')[1].minute, 410);
   assert.deepEqual(page.errors, []);
   await page.context().close();
+  // 오늘 1등이면 내 창문 위에 "오늘 첫 기상!"
+  page = await open('2026-11-08T06:30:00', { srv, seed: { settings: SET({ cur: 420 }), days: [['2026-11-08', 380, 420]] } });
+  await page.locator('#pulseBubble', { hasText: '오늘 첫 기상! 06:20' }).waitFor();
+  await page.context().close();
 
   // 예시 모드(서버 없음)에서도 말풍선과 인원 줄
   page = await open('2026-11-08T07:30:00', { seed: { settings: SET({ cur: 450 }), days: [] } });
-  await page.locator('#pulseBubble', { hasText: /^hi! \d\d:\d\d 기상$/ }).waitFor();
+  await page.locator('#pulseBubble', { hasText: / \d\d:\d\d 기상$/ }).waitFor();
   await page.getByText(/내 목표 시각\(07:30 ±15분\)에 일어난 사람 \d+명/).waitFor();
   // 내일 아침: 큰 시각을 눌러 직접 입력 (0712 → 5분 단위 07:10, 범위 밖은 맞춤, 틀린 값은 안내)
   await page.getByRole('button', { name: '설정 열기' }).click();

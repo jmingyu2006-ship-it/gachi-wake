@@ -1358,6 +1358,13 @@
     });
     return { prev: prev, near: near };
   }
+  // 말풍선 인사: 날짜·시각마다 정해져서 새로 고쳐도 같은 말
+  var GREETS = ['hi!', 'hello!', '굿모닝!', '좋은 아침!', '안녕!', 'morning!', '일어났다!', '하이!', '반가워!', '오늘도!'];
+  function greetFor(day, min) {
+    var h = 7, t = String(day) + ':' + min;
+    for (var i = 0; i < t.length; i++) h = (h * 31 + t.charCodeAt(i)) >>> 0;
+    return GREETS[h % GREETS.length];
+  }
   // 예시 모드: 30분 구간 인원으로 비슷하게
   function demoPulse(buckets, nowMin, target) {
     var cur = awakeUntil(buckets, nowMin), prev = null;
@@ -1397,7 +1404,7 @@
     normUsername: normUsername, validUsername: validUsername, validPassword: validPassword, cleanRooms: cleanRooms,
     accountData: accountData, mergeAccount: mergeAccount,
     localStreak: localStreak, recentDays: recentDays, recordsCsv: recordsCsv,
-    parseTimeInput: parseTimeInput, snapTime: snapTime, roomPulse: roomPulse, demoPulse: demoPulse,
+    greetFor: greetFor, GREETS: GREETS, parseTimeInput: parseTimeInput, snapTime: snapTime, roomPulse: roomPulse, demoPulse: demoPulse,
     SKIES: SKIES, TIER_NAMES: TIER_NAMES, MILESTONES: MILESTONES, EFFECTS: EFFECTS, MAX_SHIELDS: MAX_SHIELDS,
     pickSky: pickSky, skyById: skyById, journeyTimeline: journeyTimeline, dayInfo: dayInfo, effectTier: effectTier, nextEffect: nextEffect,
     weekRecap: weekRecap, roomTogether: roomTogether, mulberry32: mulberry32,
@@ -1428,7 +1435,7 @@
     crowd: null, crowdDay: null, serverOk: null, clearArmed: false, saving: Promise.resolve(), ob: null, edit: null,
     rooms: [], view: 'all', roomData: {}, roomSeen: {}, cheers: {}, nick: '', invite: null, leaveArmed: false, account: null, features: []
   };
-  var APP_VERSION = 'v0.12.1';
+  var APP_VERSION = 'v0.12.2';
   function has(f) { return state.features.indexOf(f) >= 0; }
 
   // ---------- 기기 저장 ----------
@@ -1701,10 +1708,16 @@
     if (!p || L.dayPhase(L.minuteOfDay(now)) === 'before') { bub.hidden = true; if (line) line.hidden = true; return; }
     if (line) { line.innerHTML = pulseLineHtml(p.near, p.target, '사람'); line.hidden = false; }
     var lit = winEls.filter(function (el) { return el.classList.contains('on') && !el.classList.contains('me'); });
-    if (p.prev === null || !lit.length || !scene.isConnected) { bub.hidden = true; return; }
-    var el = lit.reduce(function (a, b) { return +b.dataset.i > +a.dataset.i ? b : a; });   // 맨 위층 쪽 창문
-    var text = 'hi! ' + L.formatMinute(p.prev) + ' 기상', sr = scene.getBoundingClientRect(), r = el.getBoundingClientRect();
-    bub.style.left = (r.left - sr.left + r.width / 2) + 'px'; bub.style.top = (r.top - sr.top - 4) + 'px';
+    var key = L.toDateKey(now), rec = L.findDay(currentRecords(), key), el = null, text = '', lift = 4;
+    if (p.prev !== null && lit.length) {
+      el = lit.reduce(function (a, b) { return +b.dataset.i > +a.dataset.i ? b : a; });   // 맨 위층 쪽 창문
+      text = L.greetFor(key, p.prev) + ' ' + L.formatMinute(p.prev) + ' 기상';
+    } else if (rec && winEls[ME]) {
+      el = winEls[ME]; text = '오늘 첫 기상! ' + L.formatMinute(rec.minuteOfDay); lift = 22;   // 내가 오늘 1등 ('나' 표시 위로)
+    }
+    if (!el || !scene.isConnected) { bub.hidden = true; return; }
+    var sr = scene.getBoundingClientRect(), r = el.getBoundingClientRect();
+    bub.style.left = Math.min(sr.width - 70, Math.max(70, r.left - sr.left + r.width / 2)) + 'px'; bub.style.top = Math.max(30, r.top - sr.top - lift) + 'px';
     if (bub.textContent !== text || bub.hidden) { bub.textContent = text; bub.hidden = false; bub.classList.remove('pop'); void bub.offsetWidth; bub.classList.add('pop'); }
   }
   function blinkOne() {
@@ -3382,7 +3395,8 @@
       if (on) seen[id] = true;
       return '<button type="button" class="unit' + (on ? ' on' : '') + (s.me ? ' me' : '') + (pop ? ' pop' : '') + '" data-member="' + i + '" aria-label="' +
         esc(s.name) + (s.me ? ' (나)' : '') + (s.owner ? ', 방장' : '') + ', ' + (s.time ? s.time + ' 시작' : '아직') + ', 프로필 보기"><span class="w"></span>' +
-        (rp.prev && rp.prev.idx === i ? '<span class="bubble' + (bpop ? ' pop' : '') + '" aria-hidden="true">hi! ' + L.formatMinute(rp.prev.min) + ' 기상</span>' : '') + '<span class="nm">' + (s.owner ? CROWN : '') + (s.me ? '나' : esc(s.name)) + sentMark(room, d.view.members[i]) + '</span><span class="tm">' + (s.time || '아직') + '</span></button>';
+        (rp.prev && rp.prev.idx === i ? '<span class="bubble' + (bpop ? ' pop' : '') + '" aria-hidden="true">' + L.greetFor(key, rp.prev.min) + ' ' + L.formatMinute(rp.prev.min) + ' 기상</span>'
+          : (!rp.prev && s.me && rec && rs.started >= 2 && rs.slots.every(function (o) { return o.me || o.min === null || o.min >= rec.minuteOfDay; }) ? '<span class="bubble" aria-hidden="true">오늘 1등!</span>' : '')) + '<span class="nm">' + (s.owner ? CROWN : '') + (s.me ? '나' : esc(s.name)) + sentMark(room, d.view.members[i]) + '</span><span class="tm">' + (s.time || '아직') + '</span></button>';
     }).join('');
     document.getElementById('roomImg').setAttribute('aria-label', room.name + ' 건물, 창문을 누르면 프로필이 열려요');
     var tg = L.roomTogether(d.view, key, rec ? rec.minuteOfDay : null);
