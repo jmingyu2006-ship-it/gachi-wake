@@ -1,13 +1,13 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
-  <rect width="1200" height="630" fill="#0E1322"/>
+  <rect width="1200" height="630" fill="#0E1422"/>
   <g fill="#C9CFE0" opacity="0.5">
     <circle cx="90" cy="70" r="2"/><circle cx="210" cy="140" r="1.5"/><circle cx="330" cy="60" r="2"/><circle cx="470" cy="110" r="1.5"/>
     <circle cx="640" cy="50" r="2"/><circle cx="760" cy="120" r="1.5"/><circle cx="880" cy="70" r="2"/><circle cx="1010" cy="40" r="1.5"/>
   </g>
   <circle cx="1080" cy="120" r="46" fill="#FF8A4C"/>
-  <text x="80" y="250" font-family="Noto Sans CJK KR" font-weight="900" font-size="84" fill="#F4F1EA">같이 일어나요</text>
-  <text x="80" y="318" font-family="Noto Sans CJK KR" font-weight="500" font-size="32" fill="#A6ADBF">하루를 시작하고 싶은 시각을 정하고,</text>
-  <text x="80" y="362" font-family="Noto Sans CJK KR" font-weight="500" font-size="32" fill="#A6ADBF">같이 지켜요</text>
+  <text x="80" y="250" font-family="Noto Sans CJK KR" font-weight="900" font-size="96" fill="#FFC963">dayset</text>
+  <text x="80" y="318" font-family="Noto Sans CJK KR" font-weight="500" font-size="32" fill="#F5F2EB">함께 하는 미라클모닝</text>
+  <text x="80" y="362" font-family="Noto Sans CJK KR" font-weight="500" font-size="32" fill="#A6ADBF">내가 정한 시각에, 친구들과 같이 일어나요</text>
   <g transform="translate(700 250)">
     <rect x="0" y="0" width="400" height="380" rx="20" fill="#1A2238" stroke="#2D3756" stroke-width="3"/>
     <g>

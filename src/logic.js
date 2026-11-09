@@ -610,13 +610,13 @@
   function icsStamp(key, min) { return key.replace(/-/g, '') + 'T' + pad2(Math.floor(min / 60)) + pad2(min % 60) + '00'; }
   function reminderIcs(s, fromKey, site, nowIso) {
     var stamp = String(nowIso || '').replace(/[-:]/g, '').replace(/\.\d+/, '').slice(0, 15) + 'Z';
-    var L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//gachi-wake//ko', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:같이 일어나요'];
+    var L = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//gachi-wake//ko', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH', 'X-WR-CALNAME:dayset'];
     reminderStages(s, fromKey).forEach(function (g, i) {
       L.push('BEGIN:VEVENT', 'UID:gachi-wake-morning-' + i + '@gachi-wake', 'DTSTAMP:' + stamp,
         'DTSTART:' + icsStamp(g.start, g.min), 'DURATION:PT10M',
         'RRULE:FREQ=' + (byDay(s) ? 'WEEKLY;BYDAY=' + byDay(s) : 'DAILY') + (g.forever ? '' : ';COUNT=' + g.days),
         'SUMMARY:☀ 하루 시작 기록하기 · ' + formatMinute(g.min),
-        'DESCRIPTION:일어났으면 같이 일어나요에서 \'하루 시작하기\'를 눌러요.',
+        'DESCRIPTION:일어났으면 dayset에서 \'하루 시작\'을 눌러요.',
         site ? 'URL:' + site : 'X-NO-URL:1', 'TRANSP:TRANSPARENT',
         'BEGIN:VALARM', 'ACTION:DISPLAY', 'TRIGGER:PT0M', 'DESCRIPTION:☀ 하루 시작 기록하기', 'END:VALARM', 'END:VEVENT');
     });
@@ -629,7 +629,7 @@
     return 'https://calendar.google.com/calendar/render?action=TEMPLATE' +
       '&text=' + encodeURIComponent('☀ 하루 시작 기록하기') +
       '&dates=' + a + '/' + b + '&ctz=Asia%2FSeoul&recur=' + encodeURIComponent(byDay(s) ? 'RRULE:FREQ=WEEKLY;BYDAY=' + byDay(s) : 'RRULE:FREQ=DAILY') +
-      '&details=' + encodeURIComponent('일어났으면 같이 일어나요에서 \'하루 시작하기\'를 눌러요.' + (site ? '\n' + site : ''));
+      '&details=' + encodeURIComponent('일어났으면 dayset에서 \'하루 시작\'을 눌러요.' + (site ? '\n' + site : ''));
   }
   function reminderSig(s) { return s ? [s.baselineMin, s.targetMin, s.planStart, s.cur, (s.days || []).join('')].join('|') : ''; }
 

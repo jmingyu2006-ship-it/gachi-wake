@@ -1,6 +1,6 @@
 // 같이 일어나요 — 오프라인에서도 앱이 열리게 하는 서비스 워커
 // 앱 파일을 바꿔 배포할 때는 VERSION을 올려 주세요.
-const VERSION = 'gachi-v0.11.0';
+const VERSION = 'gachi-v0.11.1';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './config.js', './icons/icon-192.png', './icons/icon-512.png', './og.png'];
 
 self.addEventListener('install', (e) => {
@@ -53,7 +53,7 @@ function staleWhileRevalidate(req) {
 self.addEventListener('push', (e) => {
   let d = {};
   try { d = e.data ? e.data.json() : {}; } catch (x) { d = { body: e.data ? e.data.text() : '' }; }
-  const title = String(d.title || '같이 일어나요').slice(0, 80);
+  const title = String(d.title || 'dayset').slice(0, 80);
   e.waitUntil(self.registration.showNotification(title, {
     body: String(d.body || '').slice(0, 200),
     tag: String(d.tag || 'gachi'),

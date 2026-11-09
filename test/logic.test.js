@@ -324,7 +324,7 @@ test('아침 알림: 단계 목표별 일정, 75바이트 줄 접기, 구글 링
   const un = ics.replace(/\r\n /g, '');
   assert.match(un, /^BEGIN:VCALENDAR\r\n/); assert.match(un, /END:VCALENDAR\r\n$/);
   assert.match(un, /DTSTAMP:20261108T055012Z/);
-  assert.match(un, /DESCRIPTION:일어났으면 같이 일어나요에서 '하루 시작하기'를 눌러요\./);
+  assert.match(un, /DESCRIPTION:일어났으면 dayset에서 '하루 시작'을 눌러요\./);
   assert.equal((un.match(/BEGIN:VALARM/g) || []).length, 4);
   assert.match(L.googleReminderUrl(flat, '2026-11-09', ''), /dates=20261109T070000\/20261109T071000&ctz=Asia%2FSeoul&recur=RRULE%3AFREQ%3DDAILY/);
   assert.notEqual(L.reminderSig(s), L.reminderSig(flat));

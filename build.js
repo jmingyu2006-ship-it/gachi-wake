@@ -16,8 +16,8 @@ const esc = (s) => s.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g
 const SITE_HEAD = SITE_URL ? [
   `<script>window.GACHI_SITE_URL = ${JSON.stringify(SITE_URL)};</script>`,
   `<meta property="og:type" content="website">`,
-  `<meta property="og:title" content="같이 일어나요">`,
-  `<meta property="og:description" content="하루를 시작하고 싶은 시각을 정하고, 같이 지켜요. 지금 몇 명의 창문에 불이 켜졌는지 보세요.">`,
+  `<meta property="og:title" content="dayset · 함께 하는 미라클모닝">`,
+  `<meta property="og:description" content="내가 정한 시각에 하루를 시작하고, 친구들과 창문을 켜요. 지금 몇 명의 창문에 불이 켜졌는지 보세요.">`,
   `<meta property="og:url" content="${esc(SITE_URL)}">`,
   `<meta property="og:image" content="${esc(SITE_URL)}og.png">`,
   `<meta property="og:image:width" content="1200">`,
@@ -33,7 +33,7 @@ const WEB_HEAD = [
   '<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">',
   '<meta name="apple-mobile-web-app-capable" content="yes">',
   '<meta name="mobile-web-app-capable" content="yes">',
-  '<meta name="apple-mobile-web-app-title" content="같이 일어나요">',
+  '<meta name="apple-mobile-web-app-title" content="dayset">',
   '<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">',
   '<script src="config.js"></script>'
 ].join('\n');

@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0E1422">
-<meta name="description" content="하루를 시작하고 싶은 시각을 정하고, 같이 지켜요.">
-<title>같이 일어나요</title>
+<meta name="description" content="dayset · 함께 하는 미라클모닝. 내가 정한 시각에 하루를 시작하고, 친구들과 창문을 켜요.">
+<title>dayset · 함께 하는 미라클모닝</title>
 <!--__WEB_HEAD__-->
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
@@ -366,6 +366,8 @@
   header { min-height: 56px; align-items: flex-start; padding-top: 6px; }
   .brand { font-size: 21px; font-weight: 700; letter-spacing: -0.5px; }
   .brand small { font-size: 12.5px; margin-top: 3px; }
+  .ob-brand { font-size: 22px; font-weight: 800; letter-spacing: -0.6px; color: var(--lit); }
+  .ob-brand small { display: block; font-size: 13px; font-weight: 500; letter-spacing: 0; color: var(--muted); margin-top: 2px; }
   .icon-btn { border: none; background: transparent; width: 44px; height: 44px; margin-right: -10px; color: var(--ink); }
   main { gap: 16px; padding: 14px 0 20px; }
   .card { border: none; border-radius: 18px; padding: 18px; }
@@ -518,7 +520,7 @@
 <body>
 <div class="app">
   <header>
-    <div class="brand"><span id="brandTitle">같이 일어나요</span><small id="date"></small></div>
+    <div class="brand"><span id="brandTitle">dayset</span><small id="date"></small></div>
     <button type="button" class="icon-btn" id="openSettings" aria-label="설정 열기">
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
     </button>
@@ -558,7 +560,7 @@
     crowd: null, crowdDay: null, serverOk: null, clearArmed: false, saving: Promise.resolve(), ob: null, edit: null,
     rooms: [], view: 'all', roomData: {}, roomSeen: {}, cheers: {}, nick: '', invite: null, leaveArmed: false, account: null, features: []
   };
-  var APP_VERSION = 'v0.11.0';
+  var APP_VERSION = 'v0.11.1';
   function has(f) { return state.features.indexOf(f) >= 0; }
 
   // ---------- 기기 저장 ----------
@@ -853,7 +855,7 @@
 
   function render() {
     var now = effectiveNow();
-    document.getElementById('brandTitle').textContent = state.tab === 'habit' ? '기록' : '같이 일어나요';
+    document.getElementById('brandTitle').textContent = state.tab === 'habit' ? '기록' : 'dayset';
     document.getElementById('date').textContent = now.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' });
     document.getElementById('trialBar').hidden = !state.trial;
     if (state.trial) document.getElementById('trialText').textContent = '체험 중 · 지금이 ' + L.formatMinute(state.trial.minute) + '라고 가정 (저장 안 함)';
@@ -1396,7 +1398,7 @@
     if (rec) { var glow = g.createRadialGradient(W / 2, H + 120, 40, W / 2, H + 120, 900); glow.addColorStop(0, 'rgba(255,138,76,.55)'); glow.addColorStop(1, 'rgba(255,138,76,0)'); g.fillStyle = glow; g.fillRect(0, 0, W, H); }
     var rnd = L.hashString ? L.hashString(key) : 7;
     for (var i = 0; i < 60; i++) { rnd = (rnd * 1103515245 + 12345) & 0x7fffffff; var sx = rnd % W; rnd = (rnd * 1103515245 + 12345) & 0x7fffffff; var sy = rnd % 700; g.fillStyle = 'rgba(244,241,234,' + (0.25 + (i % 5) / 10) + ')'; g.fillRect(sx, sy + 40, 3, 3); }
-    g.textAlign = 'left'; g.fillStyle = '#F4F1EA'; g.font = '900 46px ' + KR; g.fillText('같이 일어나요', 90, 150);
+    g.textAlign = 'left'; g.fillStyle = '#F4F1EA'; g.font = '900 46px ' + KR; g.fillText('dayset', 90, 150);
     g.fillStyle = '#A6ADBF'; g.font = '500 34px ' + KR; g.fillText(now.toLocaleDateString('ko-KR', { month: 'long', day: 'numeric', weekday: 'long' }), 90, 205);
     g.textAlign = 'center';
     if (rec) {
@@ -1464,7 +1466,7 @@
     el.querySelector('#shareImgGo').addEventListener('click', function () {
       var f = file(); if (!f) return;
       if (navigator.canShare && navigator.canShare({ files: [f] })) {
-        navigator.share({ files: [f], title: '같이 일어나요', text: '오늘도 하루 시작! ' + (siteUrl() || '') }).catch(function (e) { if (!e || e.name !== 'AbortError') save(); });
+        navigator.share({ files: [f], title: 'dayset', text: '오늘도 하루 시작! ' + (siteUrl() || '') }).catch(function (e) { if (!e || e.name !== 'AbortError') save(); });
       } else save();
     });
   }
@@ -2028,7 +2030,7 @@
     var steps = '<div class="ob-steps" aria-hidden="true">' + [0, 1, 2, 3].map(function (i) { return '<i class="' + (i <= ob.step ? 'on' : '') + '"></i>'; }).join('') + '</div>';
     var body = '', foot = '';
     if (ob.step === 0) {
-      body = '<h1 id="obTitle">하루의 시작을 정하고,<br>같이 지켜요</h1><p>알람 앱이 아니에요. 내가 정한 시각에 하루를 시작했는지 버튼 하나로 기록하는 아침 습관 앱이에요.</p>' +
+      body = '<div class="ob-brand">dayset<small>함께 하는 미라클모닝</small></div><h1 id="obTitle">하루의 시작을 정하고,<br>같이 지켜요</h1><p>알람 앱이 아니에요. 내가 정한 시각에 하루를 시작했는지 버튼 하나로 기록하는 아침 습관 앱이에요.</p>' +
         '<div class="note"><b>일찍보다 일정하게.</b> 매일 비슷한 시각에 일어나는 규칙성이 수면 시간보다 건강을 더 잘 예측했다는 연구가 있어요. 그래서 순위 대신 내 목표와 흔들림을 보여줘요.</div>' +
         '<div class="note">하루를 시작하면 내 창문에 불이 켜지고, 오늘 이미 시작한 사람들의 창문이 함께 보여요.</div>' +
         '<button type="button" class="secondary" data-ob-demo style="min-height:52px">' + SUN + ' 먼저 창문 켜 보기</button>';
@@ -2221,7 +2223,7 @@
   }
   function doShare(url, text) {
     if (navigator.share && url) {
-      navigator.share({ title: '같이 일어나요', text: text, url: url }).catch(function (e) { if (!e || e.name !== 'AbortError') copyLink(url, text); });
+      navigator.share({ title: 'dayset · 함께 하는 미라클모닝', text: text, url: url }).catch(function (e) { if (!e || e.name !== 'AbortError') copyLink(url, text); });
     } else copyLink(url, text);
   }
   function shareInvite(room) {
