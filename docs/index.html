@@ -87,12 +87,22 @@
   .fx-meteor::before, .fx-meteor::after { content: ''; position: absolute; width: 60px; height: 1.5px; background: linear-gradient(90deg, rgba(255,255,255,0), #fff); transform: rotate(-25deg); animation: met 4s ease-in infinite; top: 10px; left: 10%; opacity: 0; }
   .fx-meteor::after { animation-delay: 2.1s; top: 22px; left: 45%; }
   @keyframes met { 0% { opacity: 0; transform: translate(0, 0) rotate(-25deg); } 8% { opacity: 1; } 22% { opacity: 0; transform: translate(70px, 32px) rotate(-25deg); } 100% { opacity: 0; } }
+  .fx-double { background: radial-gradient(circle at 50% 125%, transparent 50%, rgba(255,90,90,.32) 51%, rgba(255,190,80,.32) 54%, rgba(255,240,120,.3) 57%, rgba(120,220,140,.28) 60%, rgba(110,170,255,.28) 63%, rgba(160,120,255,.26) 66%, transparent 68%, transparent 72%, rgba(160,120,255,.16) 73%, rgba(110,170,255,.16) 75%, rgba(120,220,140,.16) 77%, rgba(255,240,120,.17) 79%, rgba(255,190,80,.17) 81%, rgba(255,90,90,.17) 83%, transparent 85%); }
+  .fx-comet::before { content: ''; position: absolute; left: 18%; top: 14px; width: 90px; height: 2px; border-radius: 2px; background: linear-gradient(90deg, rgba(160,220,255,0), rgba(200,240,255,.9)); transform: rotate(-18deg); box-shadow: 0 0 10px rgba(170,230,255,.8); animation: comet 14s ease-in-out infinite alternate; }
+  .fx-comet::after { content: ''; position: absolute; left: calc(18% + 86px); top: 0; width: 6px; height: 6px; border-radius: 50%; background: #fff; box-shadow: 0 0 12px 4px rgba(190,235,255,.9); transform: translateY(-1px); animation: comet 14s ease-in-out infinite alternate; }
+  @keyframes comet { from { translate: 0 0; } to { translate: 40px -6px; } }
+  .fx-sparkle { background-image: radial-gradient(circle, rgba(255,255,255,.95) 1px, transparent 1.6px), radial-gradient(circle, rgba(200,230,255,.8) .8px, transparent 1.4px); background-size: 29px 23px, 17px 19px; background-position: 0 0, 9px 7px; animation: twinkle 2.4s ease-in-out infinite alternate; }
+  @keyframes twinkle { from { opacity: .35; } to { opacity: .95; } }
+  .fx-pillar { background: linear-gradient(90deg, transparent calc(100% - 58px), rgba(255,230,170,.55) calc(100% - 49px), transparent calc(100% - 40px)); -webkit-mask-image: linear-gradient(180deg, transparent, #000 40%, #000); mask-image: linear-gradient(180deg, transparent, #000 40%, #000); }
+  .fx-green { background: radial-gradient(ellipse 70px 18px at calc(100% - 49px) 58px, rgba(140,255,150,.6), transparent 70%); animation: gflash 5s ease-in-out infinite; }
+  @keyframes gflash { 0%, 70%, 100% { opacity: .35; } 80% { opacity: 1; } }
   .fx-drops { background-image: radial-gradient(circle, rgba(255,255,255,.7) 1px, transparent 1.5px); background-size: 23px 19px; opacity: .35; }
   .scene.dawn.sky-stars .star, .scene.dawn.sky-meteor .star, .scene.dawn.sky-aurora .star { opacity: .7; }
   .sky-swatch { display: inline-block; width: 22px; height: 22px; border-radius: 7px; vertical-align: middle; border: 1px solid rgba(255,255,255,.18); flex: none; }
   .tier { display: inline-block; font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 999px; margin-left: 6px; vertical-align: middle; }
   .tier.t0 { background: #2B3450; color: var(--muted); } .tier.t1 { background: #2E3B5E; color: #A9C8FF; }
   .tier.t2 { background: #3A2E5E; color: #D3B5FF; } .tier.t3 { background: linear-gradient(90deg, #5B3A12, #6B2E5E); color: #FFE3A3; }
+  .tier.t4 { background: linear-gradient(90deg, #1E5B4A, #3B3C8E, #7A2E6B); color: #FFFFFF; box-shadow: 0 0 10px rgba(160,200,255,.45); }
   .sky-row { display: flex; align-items: center; gap: 10px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 14px; }
   .sky-row .sub { color: var(--muted); font-size: 12.5px; margin-top: 2px; }
   .shield { display: inline-flex; gap: 3px; vertical-align: middle; }
@@ -151,6 +161,7 @@
   .cer-card .sub { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
   .cer-card.t2, .cer-card.t3 { border-color: #6B5A9E; box-shadow: 0 0 24px rgba(170,130,255,.25); }
   .cer-card.t3 { border-color: #9E7A3A; box-shadow: 0 0 30px rgba(255,200,110,.35); }
+  .cer-card.t4 { border-color: #9FD8FF; box-shadow: 0 0 36px rgba(160,220,255,.45), 0 0 70px rgba(255,170,230,.25); }
   .new-tag { display: inline-block; font-size: 10.5px; font-weight: 800; color: #0E1322; background: var(--lit); border-radius: 6px; padding: 1px 6px; margin-left: 6px; vertical-align: middle; }
   .cer-stats { display: flex; justify-content: center; gap: 22px; margin-top: 16px; font-size: 13px; color: var(--muted); }
   .cer-stats b { display: block; font-family: var(--num); font-size: 26px; color: var(--ink); margin-top: 2px; }
@@ -917,19 +928,25 @@
     { id: 'halo', name: '햇무리', tier: 2, top: '#1E3C69', mid: '#76ADDF', bot: '#FFF2D0', sun: '#FFFBEA', fx: 'halo' },
     { id: 'aurora', name: '오로라 새벽', tier: 3, top: '#051224', mid: '#12495A', bot: '#EFB57A', sun: '#FFE2B8', fx: 'aurora' },
     { id: 'meteor', name: '유성우 새벽', tier: 3, top: '#090E25', mid: '#2D2969', bot: '#E6997A', sun: '#FFD6C2', fx: 'meteor' },
+    // 전설 하늘 (2026-11-11부터 나옴 → 그 전 날의 하늘은 그대로)
+    { id: 'double', name: '쌍무지개 아침', tier: 4, top: '#1F4A7A', mid: '#7FC0EA', bot: '#FFF3CF', sun: '#FFFBEA', fx: 'double', since: '2026-11-11' },
+    { id: 'comet', name: '혜성이 지나간 새벽', tier: 4, top: '#060A1E', mid: '#24306A', bot: '#F0A47C', sun: '#FFE0C4', fx: 'comet', since: '2026-11-11' },
+    { id: 'diamond', name: '다이아몬드 더스트', tier: 4, top: '#1A2F55', mid: '#9CC3E8', bot: '#F4F8FF', sun: '#FFFFFF', fx: 'sparkle', since: '2026-11-11' },
+    { id: 'pillar', name: '태양 기둥', tier: 4, top: '#2A1E46', mid: '#C9714E', bot: '#FFD08A', sun: '#FFF1C2', fx: 'pillar', since: '2026-11-11' },
+    { id: 'green', name: '초록빛 섬광', tier: 4, top: '#0F2A3D', mid: '#2E7F7A', bot: '#FFC98A', sun: '#C8FFB0', fx: 'green', since: '2026-11-11' },
     // 실제 날씨를 켰을 때만 나오는 하늘 (무작위 뽑기에는 안 들어감 → 예전 기록의 하늘은 그대로)
     { id: 'rain', name: '비 오는 아침', tier: 0, top: '#1E2738', mid: '#46546E', bot: '#8C97A8', sun: '#C9D2DE', fx: 'rain', weather: true },
     { id: 'snow', name: '눈 오는 아침', tier: 2, top: '#2B3550', mid: '#8A9BB8', bot: '#E8EEF6', sun: '#FFFFFF', fx: 'snow', weather: true },
     { id: 'storm', name: '천둥 치는 아침', tier: 2, top: '#0E1220', mid: '#2E3550', bot: '#5B6380', sun: '#E8E0FF', fx: 'storm', weather: true }
   ];
   var SKY_BY_ID = {}; SKIES.forEach(function (k) { SKY_BY_ID[k.id] = k; });
-  var TIER_NAMES = ['흔함', '가끔', '드묾', '아주 드묾'];
-  var TIER_W = [15, 8, 4, 2];
+  var TIER_NAMES = ['흔함', '가끔', '드묾', '아주 드묾', '전설'];
+  var TIER_W = [15, 8, 4, 2, 0.5];
   // 목표를 지킨 날은 드문 하늘이 더 잘 나오고, 연속 7일 이상이면 조금 더
-  function pickSky(rand, hit, streak, minTier) {
-    var HIT = [1, 1.2, 1.6, 1.8], RUN = [1, 1, 1.3, 1.2], pool = [], sum = 0;
+  function pickSky(rand, hit, streak, minTier, dateKey) {
+    var HIT = [1, 1.2, 1.6, 1.8, 2], RUN = [1, 1, 1.3, 1.2, 1.5], pool = [], sum = 0;
     SKIES.forEach(function (k) {
-      if (k.weather || k.tier < (minTier || 0)) return;
+      if (k.weather || k.tier < (minTier || 0) || (k.since && (!dateKey || dateKey < k.since))) return;
       var w = TIER_W[k.tier] * (hit ? HIT[k.tier] : 1) * (streak >= 7 ? RUN[k.tier] : 1);
       pool.push([k.id, w]); sum += w;
     });
@@ -957,15 +974,22 @@
     return null;   // 맑음·구름 조금: 평소처럼 하늘 뽑기
   }
   // 날씨가 뚜렷한 날은 그 하늘. 칭호 날(드묾 이상 보장)에 비가 오면 무지개, 흐림·안개면 드문 하늘 중에서
-  function skyForDay(rand, hit, streak, milestone, wx) {
-    var fam = weatherFamily(wx);
+  // milestone: 칭호 날의 최소 등급 (true = 드묾 이상, 숫자면 그 등급 이상). dateKey 이전에 없던 하늘은 안 나옴
+  function skyForDay(rand, hit, streak, milestone, wx, dateKey) {
+    var fam = weatherFamily(wx), minT = milestone === true ? 2 : (milestone || 0);
     if (fam) {
       var id = fam;
-      if (milestone && SKY_BY_ID[id].tier < 2) return fam === 'rain' ? 'rainbow' : pickSky(rand, hit, streak, 2);
+      if (minT && SKY_BY_ID[id].tier < minT) return fam === 'rain' && minT <= 2 ? 'rainbow' : pickSky(rand, hit, streak, minT, dateKey);
       if (fam === 'rain' && hit && rand() < 0.12) return 'rainbow';
       return id;
     }
-    return pickSky(rand, hit, streak, milestone ? 2 : 0);
+    return pickSky(rand, hit, streak, minT, dateKey);
+  }
+  // 칭호 날 하늘 등급: 보통 드묾 이상, 30일부터 아주 드묾 이상, 66일·100일은 전설 (2026-11-11부터)
+  function milestoneTier(ms, dateKey) {
+    if (!ms) return 0;
+    if (dateKey < '2026-11-11') return 2;
+    return ms.n >= 66 ? 4 : (ms.n >= 30 ? 3 : 2);
   }
   var CITIES = [
     { name: '서울', lat: 37.57, lon: 126.98 }, { name: '인천', lat: 37.46, lon: 126.71 }, { name: '수원', lat: 37.26, lon: 127.03 },
@@ -1029,7 +1053,7 @@
         n++; streak++;
         var ev = evaluate(r), hit = ev.status === 'hit', ms = MS_AT[n] || null;
         var rnd = mulberry32(hashString(seed + '|' + d));
-        var sky = (n === 1 && !weatherFamily(r.wx)) ? 'gold' : skyForDay(rnd, hit, streak, !!ms, r.wx);
+        var sky = (n === 1 && !weatherFamily(r.wx)) ? 'gold' : skyForDay(rnd, hit, streak, milestoneTier(ms, d), r.wx, d);
         var earned = false;
         if (n % SHIELD_EVERY === 0 && shields < MAX_SHIELDS) { shields++; earned = true; }
         out.days.push({ date: d, rec: true, n: n, streak: streak, sky: sky, hit: hit, milestone: ms, shieldEarned: earned });
@@ -1435,7 +1459,7 @@
     crowd: null, crowdDay: null, serverOk: null, clearArmed: false, saving: Promise.resolve(), ob: null, edit: null,
     rooms: [], view: 'all', roomData: {}, roomSeen: {}, cheers: {}, nick: '', invite: null, leaveArmed: false, account: null, features: []
   };
-  var APP_VERSION = 'v0.12.3';
+  var APP_VERSION = 'v0.13.0';
   function has(f) { return state.features.indexOf(f) >= 0; }
 
   // ---------- 기기 저장 ----------
@@ -2029,7 +2053,7 @@
   }
   function openSkyInfo(id) {
     var k = L.skyById(id), tl = journey(), n = tl.skyCounts[id] || 0;
-    var how = k.weather ? '실제 날씨를 켠 날, 그 날씨에 하루를 시작하면 떠요.' : (k.tier === 0 ? '어느 아침에나 뜰 수 있어요.' : (k.tier === 1 ? '목표를 지킨 날 더 잘 나와요.' : '목표를 지키고 연속 7일 이상일 때, 칭호를 받는 날 더 잘 나와요.'));
+    var how = k.weather ? '실제 날씨를 켠 날, 그 날씨에 하루를 시작하면 떠요.' : (k.tier === 0 ? '어느 아침에나 뜰 수 있어요.' : (k.tier === 1 ? '목표를 지킨 날 더 잘 나와요.' : (k.tier === 4 ? '전설 하늘이에요. 아주 가끔 뜨고, 66일·100일 칭호 날엔 꼭 떠요.' : '목표를 지키고 연속 7일 이상일 때, 칭호를 받는 날 더 잘 나와요.')));
     infoSheet('<div class="sky-hero" style="background:' + skyGrad(k) + '" aria-hidden="true"></div><h2 id="sheetTitle">' + esc(k.name) + tierTag(k) + '</h2>' +
       '<p class="lead">' + n + '번 만났어요. ' + how + '</p>');
   }
@@ -2791,7 +2815,9 @@
     var nM = [26, 36, 48, 64, 90][tier];
     for (var i = 0; i < nM; i++) motes.push({ x: R() * W, y: H * (0.35 + R() * 0.65), r: 0.8 + R() * 2.4, vy: 10 + R() * 26, vx: (R() - 0.5) * 10, ph: R() * 6.3, d: R() * 1.6 });
     if (tier >= 1) for (i = 0; i < 2 + tier; i++) birds.push({ x: -30 - i * 46 - R() * 30, y: H * (0.08 + R() * 0.2), s: 0.7 + R() * 0.5, v: 36 + R() * 22, ph: R() * 6.3 });
-    var starry = k.fx === 'stars' || k.fx === 'meteor' || k.fx === 'aurora' || tier >= 3;
+    var starry = k.fx === 'stars' || k.fx === 'meteor' || k.fx === 'aurora' || k.fx === 'comet' || tier >= 3;
+    var sparks = [];
+    if (k.fx === 'sparkle') for (i = 0; i < 120; i++) sparks.push({ x: R() * W, y: R() * H * 0.8, r: 0.6 + R() * 1.6, ph: R() * 6.3, v: 6 + R() * 10 });
     if (starry) for (i = 0; i < 50; i++) stars.push({ x: R() * W, y: R() * H * 0.45, r: 0.5 + R() * 1.2, ph: R() * 6.3 });
     if (k.fx === 'clouds' || k.fx === 'mist' || k.fx === 'rain' || k.fx === 'storm') for (i = 0; i < (k.fx === 'clouds' || k.fx === 'mist' ? 5 : 8); i++) clouds.push({ x: R() * W, y: H * (0.05 + R() * 0.3), w: 90 + R() * 140, v: 4 + R() * 8 });
     var drops = [], flakes = [];
@@ -2821,6 +2847,19 @@
           g.strokeStyle = 'rgba(' + c + ',' + (0.32 * sky) + ')'; g.lineWidth = 7; g.beginPath(); g.arc(W / 2, H * 0.62, W * 0.62 - j * 7, Math.PI * 1.05, Math.PI * 1.95); g.stroke();
         });
       }
+      if (k.fx === 'double' && sky > 0) [[0, 0.32], [1, 0.16]].forEach(function (ring) {
+        var cols = ['255,90,90', '255,170,70', '255,235,110', '110,215,140', '100,160,255', '160,110,255'];
+        (ring[0] ? cols.slice().reverse() : cols).forEach(function (c, j) { g.strokeStyle = 'rgba(' + c + ',' + (ring[1] * sky) + ')'; g.lineWidth = ring[0] ? 5 : 7; g.beginPath(); g.arc(W / 2, H * 0.62, W * (ring[0] ? 0.8 : 0.62) - j * (ring[0] ? 5 : 7), Math.PI * 1.05, Math.PI * 1.95); g.stroke(); });
+      });
+      if (k.fx === 'comet' && sky > 0) {
+        var cx = W * (0.15 + 0.02 * t), cy = H * 0.12, tl = 160, cg2 = g.createLinearGradient(cx - tl, cy + tl * 0.35, cx, cy);
+        cg2.addColorStop(0, 'rgba(160,220,255,0)'); cg2.addColorStop(1, 'rgba(220,245,255,' + (0.9 * sky) + ')');
+        g.strokeStyle = cg2; g.lineWidth = 3; g.beginPath(); g.moveTo(cx - tl, cy + tl * 0.35); g.lineTo(cx, cy); g.stroke();
+        g.fillStyle = 'rgba(255,255,255,' + sky + ')'; g.shadowColor = 'rgba(190,235,255,1)'; g.shadowBlur = 18; g.beginPath(); g.arc(cx, cy, 3.5, 0, 6.3); g.fill(); g.shadowBlur = 0;
+      }
+      if (sparks.length) sparks.forEach(function (sp) { sp.y += sp.v * dt; if (sp.y > H) sp.y = -4; var a = (0.3 + 0.7 * Math.abs(Math.sin(t * 2.2 + sp.ph))) * sky; g.fillStyle = 'rgba(235,245,255,' + a + ')'; g.fillRect(sp.x - sp.r, sp.y - 0.4, sp.r * 2, 0.8); g.fillRect(sp.x - 0.4, sp.y - sp.r, 0.8, sp.r * 2); });
+      if (k.fx === 'pillar' && sky > 0) { var pg = g.createLinearGradient(0, 0, 0, sunY); pg.addColorStop(0, 'rgba(255,230,170,0)'); pg.addColorStop(1, 'rgba(255,230,170,' + (0.5 * sky) + ')'); g.fillStyle = pg; g.fillRect(sunX - 14, 0, 28, sunY); }
+      if (k.fx === 'green' && sky > 0) { var ga = (0.25 + 0.55 * Math.max(0, Math.sin(t * 1.3))) * sky, gg = g.createRadialGradient(sunX, sunY - 70, 4, sunX, sunY - 70, 140); gg.addColorStop(0, 'rgba(150,255,160,' + ga + ')'); gg.addColorStop(1, 'rgba(150,255,160,0)'); g.fillStyle = gg; g.fillRect(0, 0, W, H); }
       if (k.fx === 'halo' && sky > 0) { g.strokeStyle = 'rgba(255,255,235,' + (0.45 * sky) + ')'; g.lineWidth = 3; g.beginPath(); g.arc(sunX, sunY, 110 + Math.sin(t) * 3, 0, 6.3); g.stroke(); }
       // 구름·안개
       clouds.forEach(function (c) { c.x += c.v * dt; if (c.x - c.w > W) c.x = -c.w; var cg = g.createRadialGradient(c.x, c.y, 2, c.x, c.y, c.w / 2); cg.addColorStop(0, 'rgba(255,255,255,' + (0.22 * sky) + ')'); cg.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = cg; g.beginPath(); g.ellipse(c.x, c.y, c.w / 2, c.w / 7, 0, 0, 6.3); g.fill(); });

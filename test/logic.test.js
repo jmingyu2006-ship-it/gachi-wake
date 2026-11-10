@@ -401,7 +401,8 @@ test('연출 단계·다음 연출, 하늘 확률(목표 지킨 날이 더 드�
   const base = rate(false, 0), good = rate(true, 10);
   assert.ok(base > 0.15 && base < 0.21, '기본 드묾 이상 약 18%: ' + base);
   assert.ok(good > base + 0.08, '목표 지키고 연속이면 더 자주: ' + good);
-  assert.equal(L.SKIES.length, 15);
+  assert.equal(L.SKIES.length, 20);
+  assert.equal(L.SKIES.filter(k => k.tier === 4).length, 5);
   assert.equal(L.SKIES.filter(k => k.weather).length, 3);
   const r2 = L.mulberry32(3); for (let i = 0; i < 5000; i++) assert.ok(!L.skyById(L.pickSky(r2, true, 20, 0)).weather, '날씨 하늘은 뽑기에 안 나옴');
 });
@@ -549,4 +550,20 @@ test('말풍선 인사: 같은 날·시각엔 같은 말, 여러 가지가 나�
   for (let m = 300; m < 600; m += 7) seen.add(L.greetFor('2026-11-10', m));
   assert.ok(seen.size >= 5, [...seen].join(','));
   for (const g of seen) assert.ok(L.GREETS.includes(g));
+});
+
+test('전설 하늘(v0.13): 11/11부터만 나오고, 그 전 날의 하늘은 그대로 / 드물게 / 66일 칭호 날엔 전설', () => {
+  const r = L.mulberry32(11); let leg = 0, legOld = 0;
+  for (let i = 0; i < 40000; i++) { if (L.skyById(L.pickSky(r, false, 0, 0, '2026-11-12')).tier === 4) leg++; if (L.skyById(L.pickSky(r, true, 20, 0, '2026-11-10')).tier === 4) legOld++; }
+  assert.equal(legOld, 0, '11/10까지는 전설 하늘 없음');
+  assert.ok(leg / 40000 > 0.01 && leg / 40000 < 0.04, '평소 약 2.4%: ' + leg / 40000);
+  // 같은 기록이면 11/10까지의 하늘은 새 하늘이 생겨도 똑같다 (뽑기 범위가 같음)
+  const s = L.makeSettings({ baselineMin: 420, targetMin: 420, sleepNeedH: 8, firstAction: '물 한 잔 마시기' }, '2026-09-01').settings;
+  let recs = []; for (let i = 0; i < 70; i++) recs = L.createStartRecord(recs, new Date(2026, 8, 10 + i, 7, 3, i % 60), s).records;
+  const tl = L.journeyTimeline(recs, '2026-11-19', s);
+  assert.ok(tl.days.filter(d => d.rec && d.date <= '2026-11-10').every(d => L.skyById(d.sky).tier < 4));
+  const d66 = tl.days.find(d => d.n === 66);
+  assert.equal(d66.date, '2026-11-14');
+  assert.equal(L.skyById(d66.sky).tier, 4, '66일 칭호 날은 전설');
+  assert.ok(L.skyById(tl.days.find(d => d.n === 30).sky).tier >= 2);
 });

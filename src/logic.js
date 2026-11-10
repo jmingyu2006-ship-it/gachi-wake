@@ -336,19 +336,25 @@
     { id: 'halo', name: '햇무리', tier: 2, top: '#1E3C69', mid: '#76ADDF', bot: '#FFF2D0', sun: '#FFFBEA', fx: 'halo' },
     { id: 'aurora', name: '오로라 새벽', tier: 3, top: '#051224', mid: '#12495A', bot: '#EFB57A', sun: '#FFE2B8', fx: 'aurora' },
     { id: 'meteor', name: '유성우 새벽', tier: 3, top: '#090E25', mid: '#2D2969', bot: '#E6997A', sun: '#FFD6C2', fx: 'meteor' },
+    // 전설 하늘 (2026-11-11부터 나옴 → 그 전 날의 하늘은 그대로)
+    { id: 'double', name: '쌍무지개 아침', tier: 4, top: '#1F4A7A', mid: '#7FC0EA', bot: '#FFF3CF', sun: '#FFFBEA', fx: 'double', since: '2026-11-11' },
+    { id: 'comet', name: '혜성이 지나간 새벽', tier: 4, top: '#060A1E', mid: '#24306A', bot: '#F0A47C', sun: '#FFE0C4', fx: 'comet', since: '2026-11-11' },
+    { id: 'diamond', name: '다이아몬드 더스트', tier: 4, top: '#1A2F55', mid: '#9CC3E8', bot: '#F4F8FF', sun: '#FFFFFF', fx: 'sparkle', since: '2026-11-11' },
+    { id: 'pillar', name: '태양 기둥', tier: 4, top: '#2A1E46', mid: '#C9714E', bot: '#FFD08A', sun: '#FFF1C2', fx: 'pillar', since: '2026-11-11' },
+    { id: 'green', name: '초록빛 섬광', tier: 4, top: '#0F2A3D', mid: '#2E7F7A', bot: '#FFC98A', sun: '#C8FFB0', fx: 'green', since: '2026-11-11' },
     // 실제 날씨를 켰을 때만 나오는 하늘 (무작위 뽑기에는 안 들어감 → 예전 기록의 하늘은 그대로)
     { id: 'rain', name: '비 오는 아침', tier: 0, top: '#1E2738', mid: '#46546E', bot: '#8C97A8', sun: '#C9D2DE', fx: 'rain', weather: true },
     { id: 'snow', name: '눈 오는 아침', tier: 2, top: '#2B3550', mid: '#8A9BB8', bot: '#E8EEF6', sun: '#FFFFFF', fx: 'snow', weather: true },
     { id: 'storm', name: '천둥 치는 아침', tier: 2, top: '#0E1220', mid: '#2E3550', bot: '#5B6380', sun: '#E8E0FF', fx: 'storm', weather: true }
   ];
   var SKY_BY_ID = {}; SKIES.forEach(function (k) { SKY_BY_ID[k.id] = k; });
-  var TIER_NAMES = ['흔함', '가끔', '드묾', '아주 드묾'];
-  var TIER_W = [15, 8, 4, 2];
+  var TIER_NAMES = ['흔함', '가끔', '드묾', '아주 드묾', '전설'];
+  var TIER_W = [15, 8, 4, 2, 0.5];
   // 목표를 지킨 날은 드문 하늘이 더 잘 나오고, 연속 7일 이상이면 조금 더
-  function pickSky(rand, hit, streak, minTier) {
-    var HIT = [1, 1.2, 1.6, 1.8], RUN = [1, 1, 1.3, 1.2], pool = [], sum = 0;
+  function pickSky(rand, hit, streak, minTier, dateKey) {
+    var HIT = [1, 1.2, 1.6, 1.8, 2], RUN = [1, 1, 1.3, 1.2, 1.5], pool = [], sum = 0;
     SKIES.forEach(function (k) {
-      if (k.weather || k.tier < (minTier || 0)) return;
+      if (k.weather || k.tier < (minTier || 0) || (k.since && (!dateKey || dateKey < k.since))) return;
       var w = TIER_W[k.tier] * (hit ? HIT[k.tier] : 1) * (streak >= 7 ? RUN[k.tier] : 1);
       pool.push([k.id, w]); sum += w;
     });
@@ -376,15 +382,22 @@
     return null;   // 맑음·구름 조금: 평소처럼 하늘 뽑기
   }
   // 날씨가 뚜렷한 날은 그 하늘. 칭호 날(드묾 이상 보장)에 비가 오면 무지개, 흐림·안개면 드문 하늘 중에서
-  function skyForDay(rand, hit, streak, milestone, wx) {
-    var fam = weatherFamily(wx);
+  // milestone: 칭호 날의 최소 등급 (true = 드묾 이상, 숫자면 그 등급 이상). dateKey 이전에 없던 하늘은 안 나옴
+  function skyForDay(rand, hit, streak, milestone, wx, dateKey) {
+    var fam = weatherFamily(wx), minT = milestone === true ? 2 : (milestone || 0);
     if (fam) {
       var id = fam;
-      if (milestone && SKY_BY_ID[id].tier < 2) return fam === 'rain' ? 'rainbow' : pickSky(rand, hit, streak, 2);
+      if (minT && SKY_BY_ID[id].tier < minT) return fam === 'rain' && minT <= 2 ? 'rainbow' : pickSky(rand, hit, streak, minT, dateKey);
       if (fam === 'rain' && hit && rand() < 0.12) return 'rainbow';
       return id;
     }
-    return pickSky(rand, hit, streak, milestone ? 2 : 0);
+    return pickSky(rand, hit, streak, minT, dateKey);
+  }
+  // 칭호 날 하늘 등급: 보통 드묾 이상, 30일부터 아주 드묾 이상, 66일·100일은 전설 (2026-11-11부터)
+  function milestoneTier(ms, dateKey) {
+    if (!ms) return 0;
+    if (dateKey < '2026-11-11') return 2;
+    return ms.n >= 66 ? 4 : (ms.n >= 30 ? 3 : 2);
   }
   var CITIES = [
     { name: '서울', lat: 37.57, lon: 126.98 }, { name: '인천', lat: 37.46, lon: 126.71 }, { name: '수원', lat: 37.26, lon: 127.03 },
@@ -448,7 +461,7 @@
         n++; streak++;
         var ev = evaluate(r), hit = ev.status === 'hit', ms = MS_AT[n] || null;
         var rnd = mulberry32(hashString(seed + '|' + d));
-        var sky = (n === 1 && !weatherFamily(r.wx)) ? 'gold' : skyForDay(rnd, hit, streak, !!ms, r.wx);
+        var sky = (n === 1 && !weatherFamily(r.wx)) ? 'gold' : skyForDay(rnd, hit, streak, milestoneTier(ms, d), r.wx, d);
         var earned = false;
         if (n % SHIELD_EVERY === 0 && shields < MAX_SHIELDS) { shields++; earned = true; }
         out.days.push({ date: d, rec: true, n: n, streak: streak, sky: sky, hit: hit, milestone: ms, shieldEarned: earned });
