@@ -703,7 +703,7 @@ test('도움: 친구 신고(운영자에게만), 의견 보내기, 서버의 내
   await fr.getByRole('button', { name: '신고 보내기' }).click();
   await fr.getByText('신고를 보냈어요. 확인해 볼게요.').waitFor();
   const rp = srv.st.reports.find(r => r.p_kind === 'report');
-  assert.equal(rp.target_name, '민규'); assert.equal(rp.p_reason, '부적절한 이름'); assert.equal(rp.p_room, code); assert.match(rp.p_meta, /^v0\.13\.0 · web · /);
+  assert.equal(rp.target_name, '민규'); assert.equal(rp.p_reason, '부적절한 이름'); assert.equal(rp.p_room, code); assert.match(rp.p_meta, /^v0\.13\.1 · web · /);
   // 내 프로필에는 신고 버튼 없음
   await unit(fr, '민수').click();
   assert.equal(await fr.locator('#sheetBody').getByRole('button', { name: '신고하기' }).count(), 0);
@@ -797,7 +797,7 @@ test('서버에 새 기능이 아직 없으면 버튼이 숨고, 화면 오류�
   await new Promise(r => setTimeout(r, 300));
   const errs = on.st.reports.filter(r => r.p_kind === 'error');
   assert.deepEqual(errs.map(e => e.p_body), ['boom-0', 'boom-1', 'boom-2']);
-  assert.match(errs[0].p_meta, /v0\.13\.0/);
+  assert.match(errs[0].p_meta, /v0\.13\.1/);
   await q.context().close();
 });
 
@@ -933,13 +933,19 @@ test('방 주간 목표: 방장이 각자 몇 번인지 바꾸면 친구 화면�
   await me.clock.runFor(21000);
   await openMenu(me);
   await me.locator('#roomGoal').getByText('0 / 8').waitFor();
-  await me.getByRole('button', { name: '3회', exact: true }).click();
+  await me.getByRole('button', { name: '목표 1회 줄이기' }).click();
   await me.getByText('이번 주부터 한 사람당 3회예요.').waitFor();
   await me.locator('#roomGoal').getByText('0 / 6').waitFor();
   await me.screenshot({ path: path.join(SHOTS, 'v10-room-goal.png') });
+  await me.getByRole('button', { name: '닫기' }).click();
   await fr.clock.runFor(21000);
   await openMenu(fr);
   await fr.locator('#roomGoal').getByText('한 사람당 3회').waitFor();
+  // 다시 열면 항상 전체 사용자 건물부터
+  await fr.reload();
+  await fr.locator('#viewSel', { hasText: '전체 사용자' }).waitFor();
+  await pick(fr, '우리 방');
+  await fr.locator('#viewSel', { hasText: '우리 방' }).waitFor();
   assert.deepEqual(me.errors, []); assert.deepEqual(fr.errors, []);
   await me.context().close(); await fr.context().close();
 });

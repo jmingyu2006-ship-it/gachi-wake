@@ -525,6 +525,22 @@
   .mood3 .face { width: 64px; height: 64px; border-radius: 50%; background: var(--surface2); display: grid; place-items: center; color: var(--ink); }
   .mood3 button[aria-pressed="true"] .face { background: rgba(255,201,99,.16); color: var(--lit); box-shadow: inset 0 0 0 2px var(--lit); }
   .mood3 button[aria-pressed="true"] { color: var(--ink); font-weight: 700; }
+  .vchips { display: flex; gap: 8px; overflow-x: auto; margin: 0 -24px 16px; padding: 2px 24px; scrollbar-width: none; }
+  .vchips::-webkit-scrollbar { display: none; }
+  .vchips button { flex: none; display: inline-flex; align-items: center; gap: 4px; min-height: 40px; max-width: 180px; padding: 0 14px; border: none; border-radius: 999px; background: var(--surface2); color: var(--muted); font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .vchips button svg { width: 15px; height: 15px; flex: none; }
+  .vchips button[aria-current="true"] { background: var(--ink); color: var(--night); }
+  .vchips button.add { background: none; box-shadow: inset 0 0 0 1px #3A4460; }
+  .rs-card { background: var(--surface2); border-radius: 16px; padding: 16px; margin-bottom: 12px; font-size: 15px; }
+  .rs-card .bar { margin-top: 10px; height: 8px; background: #2F3953; }
+  .code-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 4px; }
+  .code-line .code { font-size: 26px; font-weight: 800; letter-spacing: 2px; }
+  .mini-btn { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 14px; border: none; border-radius: 10px; background: #2F3953; color: var(--ink); font-size: 13.5px; font-weight: 600; }
+  .goal-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 16px; }
+  .goal-step { display: inline-flex; gap: 6px; }
+  .goal-step button { width: 44px; height: 40px; border: none; border-radius: 10px; background: #2F3953; color: var(--ink); font-size: 20px; font-weight: 600; }
+  .goal-step button[disabled] { opacity: .35; }
+  .leave-link { display: block; margin: 8px auto 0; min-height: 44px; padding: 0 16px; border: none; background: none; color: var(--late); font-size: 14px; font-weight: 600; }
   .sky-hero { height: 120px; border-radius: 16px; margin: 4px 0 14px; }
   .time-btn { display: block; width: 100%; background: none; border: none; color: inherit; padding: 0; cursor: text; -webkit-tap-highlight-color: transparent; }
   .time-btn:focus-visible { outline: 3px solid var(--lit); outline-offset: 4px; border-radius: 14px; }
@@ -592,7 +608,7 @@
     crowd: null, crowdDay: null, serverOk: null, clearArmed: false, saving: Promise.resolve(), ob: null, edit: null,
     rooms: [], view: 'all', roomData: {}, roomSeen: {}, cheers: {}, nick: '', invite: null, leaveArmed: false, account: null, features: []
   };
-  var APP_VERSION = 'v0.13.0';
+  var APP_VERSION = 'v0.13.1';
   function has(f) { return state.features.indexOf(f) >= 0; }
 
   // ---------- 기기 저장 ----------
@@ -2604,23 +2620,26 @@
     } else if (room) {
       var d = state.roomData[room.code], v = d && d.view, rec = L.findDay(currentRecords(), key);
       var n = v ? v.members.length : 0, tg = v ? L.roomTogether(v, key, rec ? rec.minuteOfDay : null) : null, own = !!(v && v.owner_me);
-      html = '<div class="row-between"><h2 id="sheetTitle">' + esc(room.name) + '</h2>' + (own ? '<span class="tag">' + CROWN + '방장</span>' : '') + '</div>' +
-        '<p class="lead">' + (n ? n + '명 · ' : '') + '친구들과 함께 쓰는 방</p>' +
-        '<button type="button" class="primary" data-invite style="width:100%">+ 친구 초대</button>' +
-        '<div class="code-row"><div><div class="label">초대 코드</div><div class="code num">' + esc(room.code) + '</div></div><button type="button" class="copy-btn" data-copy-code aria-label="초대 코드 복사"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg></button></div>';
+      var rs = v ? L.roomSlots(v, rec ? rec.minuteOfDay : null) : null;
+      var chips = '<div class="vchips" role="group" aria-label="볼 건물">' +
+        '<button type="button" data-view="all" aria-current="false">전체 사용자</button>' +
+        state.rooms.map(function (r) { var cur = r.code === room.code; return '<button type="button" data-view="' + esc(r.code) + '" aria-current="' + cur + '">' + (cur ? CHECK : '') + esc(r.name) + '</button>'; }).join('') +
+        '<button type="button" class="add" data-create-room>+ 방 만들기</button><button type="button" class="add" data-code-room>코드로 들어가기</button></div>';
+      html = '<div class="row-between" style="align-items:center"><h2 id="sheetTitle">' + esc(room.name) + '</h2>' + (own ? '<span class="tag">' + CROWN + '방장</span>' : '') + '</div>' +
+        '<p class="lead" style="margin-bottom:12px">' + (n ? n + '명' + (rs ? ' · 오늘 ' + rs.started + '명 시작' : '') : '친구들과 함께 쓰는 방') + '</p>' + chips +
+        '<div class="rs-card"><div class="label">초대 코드</div><div class="code-line"><span class="code num">' + esc(room.code) + '</span>' +
+          '<button type="button" class="mini-btn" data-copy-code aria-label="초대 코드 복사"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>복사</button></div>' +
+          '<button type="button" class="primary" data-invite style="width:100%;min-height:48px;margin-top:12px">친구 초대 링크 보내기</button></div>';
       if (tg && n >= 2) {
         var pct = Math.min(100, Math.round(tg.weekLit / tg.weekGoal * 100)), done = tg.weekLit >= tg.weekGoal;
-        html += '<div id="roomGoal" style="padding:16px 0;border-bottom:1px solid var(--line)"><div class="row-between"><div>이번 주 함께 켠 창문</div><div class="num" style="font-weight:700;color:var(--lit)">' + tg.weekLit + ' / ' + tg.weekGoal + '</div></div>' +
+        html += '<div class="rs-card" id="roomGoal"><div class="row-between"><span>이번 주 함께 켠 창문</span><b class="num" style="color:' + (done ? 'var(--good)' : 'var(--lit)') + '">' + tg.weekLit + ' / ' + tg.weekGoal + '</b></div>' +
           '<div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="' + tg.weekGoal + '" aria-valuenow="' + tg.weekLit + '" aria-label="이번 주 함께 켠 창문"><i style="width:' + pct + '%' + (done ? ';background:var(--good)' : '') + '"></i></div>' +
-          (done ? '<p class="hint-small">이번 주 목표 달성! 🎉</p>' : '') +
-          '<div class="row-between" style="margin-top:14px"><span>참여 목표</span><span class="label">한 사람당 ' + tg.each + '회</span></div>' +
-          (own ? '<div class="pills" role="group" aria-label="주간 목표: 각자 몇 번" style="margin-top:10px;gap:6px">' +
-            [1, 2, 3, 4, 5, 6, 7].map(function (k) { return '<button type="button" class="pill" style="min-height:40px;padding:0 12px" data-week-goal="' + k + '" aria-pressed="' + (k === tg.each) + '">' + k + '회</button>'; }).join('') + '</div>'
-            : '<p class="hint-small">참여 목표는 방장이 정해요 · 월요일에 새로 시작</p>') + '</div>';
+          '<div class="goal-line"><span>참여 목표 · 한 사람당 ' + tg.each + '회</span>' +
+          (own ? '<span class="goal-step"><button type="button" data-week-goal="' + (tg.each - 1) + '" aria-label="목표 1회 줄이기"' + (tg.each <= 1 ? ' disabled' : '') + '>−</button><button type="button" data-week-goal="' + (tg.each + 1) + '" aria-label="목표 1회 늘리기"' + (tg.each >= 7 ? ' disabled' : '') + '>+</button></span>' : '') + '</div>' +
+          '<p class="hint-small" style="margin:6px 0 0">' + (done ? '이번 주 목표 달성! 🎉 · ' : '') + n + '명 × ' + tg.each + '회 · 월요일에 새로 시작' + (own ? '' : ' · 참여 목표는 방장이 정해요') + '</p></div>';
       }
-      html += '<div class="section-label">방 관리</div><p class="hint-small" style="margin-top:0">친구 창문을 누르면 프로필과 응원' + (own ? ', 내보내기' : '') + '가 있어요.</p>' +
-        '<button type="button" class="danger" data-leave>이 방 나가기</button>' +
-        '<div class="section-label">다른 건물 보기</div>' + list;
+      html += '<p class="hint-small center" style="margin:14px 0 0">친구 창문을 누르면 프로필과 응원' + (own ? ', 내보내기' : '') + '가 있어요</p>' +
+        '<button type="button" class="leave-link" data-leave>이 방 나가기</button>';
     } else {
       html = '<h2 id="sheetTitle">건물 고르기</h2><p class="lead">전체 사용자는 모든 사람의 창문, 방은 초대한 친구만 보여요.</p>' + list +
         '<button type="button" class="secondary" data-share style="width:100%;margin-top:14px">친구에게 앱 알려 주기</button>';
@@ -2632,7 +2651,9 @@
       el.querySelector('#closeSheet').addEventListener('click', closeSheet);
       if (refresh) el.scrollTop = y;
     }
-    if (!refresh) { state.leaveArmed = false; document.getElementById('sheet').hidden = false; el.querySelector('h2').setAttribute('tabindex', '-1'); el.querySelector('h2').focus(); }
+    if (!refresh) { state.leaveArmed = false; document.getElementById('sheet').hidden = false; el.scrollTop = 0; el.querySelector('h2').setAttribute('tabindex', '-1'); el.querySelector('h2').focus({ preventScroll: true }); }
+    var vc = el.querySelector('.vchips'), cur = vc && vc.querySelector('[aria-current="true"]');
+    if (cur && vc.scrollWidth > vc.clientWidth) vc.scrollLeft = Math.max(0, cur.offsetLeft - vc.clientWidth / 2 + cur.offsetWidth / 2);
   }
   function refreshRoom() {
     var room = currentRoom();
@@ -2781,7 +2802,7 @@
     var wg = e.target.closest('[data-week-goal]');
     if (wg) {
       var room0 = currentRoom(); if (!room0) return;
-      var n = +wg.dataset.weekGoal;
+      var n = +wg.dataset.weekGoal; if (n < 1 || n > 7) return;
       Server.rpc('set_room_goal', { p_anon: anonId, p_code: room0.code, p_n: n }).then(function (res) {
         if (!res || res.error) { toast(roomErr(res && res.error)); return; }
         var rd = state.roomData[room0.code]; if (rd && rd.view) rd.view.week_goal = n;
@@ -3100,8 +3121,7 @@
   state.records = L.mergeRecords(Local.get(K.records), Local.get(K.v1));
   state.rooms = (Local.get(K.rooms) || []).filter(function (r) { return r && L.parseRoomCode(String(r.code)) === r.code && typeof r.name === 'string'; })
     .map(function (r) { return { code: r.code, name: L.sanitizeName(r.name, 20) || '우리 방' }; });
-  var savedView = Local.get(K.view);
-  state.view = state.rooms.some(function (r) { return r.code === savedView; }) ? savedView : 'all';
+  state.view = 'all';   // 열 때는 항상 전체 사용자 건물부터 (방은 건물 이름을 눌러서)
   state.nick = L.sanitizeName(String(Local.get(K.nick) || ''), 10);
   var acc = Local.get(K.account);
   state.account = acc && L.validUsername(acc.username) ? { username: L.normUsername(acc.username) } : null;
