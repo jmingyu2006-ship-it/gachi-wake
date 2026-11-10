@@ -157,6 +157,13 @@ test('v0.12: 바로 앞에 일어난 사람 말풍선 + 목표 ±15분 인원 (�
   // 오늘 1등이면 내 창문 위에 "오늘 첫 기상!"
   page = await open('2026-11-08T06:30:00', { srv, seed: { settings: SET({ cur: 420 }), days: [['2026-11-08', 380, 420]] } });
   await page.locator('#pulseBubble', { hasText: '오늘 첫 기상! 06:20' }).waitFor();
+  // 누르면 닫히고, 새로 고쳐도 그날은 다시 안 뜸 (말풍선 밑 창문이 보임)
+  await page.locator('#pulseBubble').click();
+  assert.equal(await page.locator('#pulseBubble').isVisible(), false);
+  await page.reload();
+  await page.locator('#pulseLine').waitFor();
+  await page.clock.runFor(5000);
+  assert.equal(await page.locator('#pulseBubble').isVisible(), false);
   await page.context().close();
 
   // 예시 모드(서버 없음)에서도 말풍선과 인원 줄

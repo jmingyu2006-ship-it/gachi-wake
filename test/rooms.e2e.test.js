@@ -295,6 +295,9 @@ test('나와 친구: 방 만들기 → 초대 링크 → 친구 참여 → 서�
   // 나보다 바로 앞에 일어난 친구 창문 위에 말풍선, 목표 ±15분 친구 수
   assert.match(await unit(fr, '민규').locator('.bubble').textContent(), /^.+ 06:3\d 기상$/);
   assert.equal(await unit(fr, '민수').locator('.bubble').count(), 0);
+  await unit(fr, '민규').locator('.bubble').click();   // 말풍선만 닫히고 프로필은 안 열림
+  assert.equal(await unit(fr, '민규').locator('.bubble').isVisible(), false);
+  assert.equal(await fr.locator('#sheet').isVisible(), false);
   await fr.getByText('내 목표 시각(07:45 ±15분)에 일어난 친구 0명').waitFor();
   await fr.clock.runFor(1500);
   await fr.screenshot({ path: path.join(SHOTS, '11-room-friend.png') });
@@ -700,7 +703,7 @@ test('도움: 친구 신고(운영자에게만), 의견 보내기, 서버의 내
   await fr.getByRole('button', { name: '신고 보내기' }).click();
   await fr.getByText('신고를 보냈어요. 확인해 볼게요.').waitFor();
   const rp = srv.st.reports.find(r => r.p_kind === 'report');
-  assert.equal(rp.target_name, '민규'); assert.equal(rp.p_reason, '부적절한 이름'); assert.equal(rp.p_room, code); assert.match(rp.p_meta, /^v0\.12\.2 · web · /);
+  assert.equal(rp.target_name, '민규'); assert.equal(rp.p_reason, '부적절한 이름'); assert.equal(rp.p_room, code); assert.match(rp.p_meta, /^v0\.12\.3 · web · /);
   // 내 프로필에는 신고 버튼 없음
   await unit(fr, '민수').click();
   assert.equal(await fr.locator('#sheetBody').getByRole('button', { name: '신고하기' }).count(), 0);
@@ -794,7 +797,7 @@ test('서버에 새 기능이 아직 없으면 버튼이 숨고, 화면 오류�
   await new Promise(r => setTimeout(r, 300));
   const errs = on.st.reports.filter(r => r.p_kind === 'error');
   assert.deepEqual(errs.map(e => e.p_body), ['boom-0', 'boom-1', 'boom-2']);
-  assert.match(errs[0].p_meta, /v0\.12\.2/);
+  assert.match(errs[0].p_meta, /v0\.12\.3/);
   await q.context().close();
 });
 
